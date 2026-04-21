@@ -35,6 +35,21 @@ import {
 // Simple UID generator
 const uid = () => Math.random().toString(36).substring(2, 9);
 
+// Auto-Rank Calculation
+const getSystemRank = (level: number) => {
+  if (level >= 100) return 'ALPHA';
+  if (level >= 90) return 'Z-RANK';
+  if (level >= 80) return 'X-RANK';
+  if (level >= 70) return 'SSS-RANK';
+  if (level >= 60) return 'SS-RANK';
+  if (level >= 50) return 'S-RANK';
+  if (level >= 40) return 'A-RANK';
+  if (level >= 30) return 'B-RANK';
+  if (level >= 20) return 'C-RANK';
+  if (level >= 10) return 'D-RANK';
+  return 'E-RANK';
+};
+
 export default function App() {
   // --- INITIAL STATE ---
   const [character, setCharacter] = useState<Character>(() => {
@@ -42,16 +57,12 @@ export default function App() {
       const saved = localStorage.getItem('rpg_character');
       return saved ? JSON.parse(saved) : { 
         name: 'SUNG JIN-WOO', 
-        title: 'Shadow Monarch', 
-        rank: 'S-RANK',
         level: 1, 
         exp: 0 
       };
     } catch (e) {
       return { 
         name: 'SUNG JIN-WOO', 
-        title: 'Shadow Monarch', 
-        rank: 'S-RANK',
         level: 1, 
         exp: 0 
       };
@@ -194,6 +205,21 @@ export default function App() {
   const handleClaimReward = (rewards: Reward[]) => {
     let totalOverflow = 0;
     
+    // Add floating text rewards
+    const newFloats = rewards.map(r => {
+      const bar = statusBars.find(b => b.id === r.statusBarId);
+      return {
+        id: uid(),
+        amount: r.amount,
+        statName: bar?.name || 'STAT',
+        color: bar?.color || '#fff'
+      };
+    });
+    setRewardFloats(prev => [...prev, ...newFloats]);
+    setTimeout(() => {
+      setRewardFloats(prev => prev.filter(f => !newFloats.find(nf => nf.id === f.id)));
+    }, 2000);
+
     // Calculate new status bars and overflow count before updating state
     // to ensure XP addition is based on actual completions.
     const nextStatusBars = statusBars.map(bar => {
@@ -244,8 +270,39 @@ export default function App() {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [showLevelUp, setShowLevelUp] = useState<number | null>(null);
+  const [screenShake, setScreenShake] = useState(false);
+  const [rewardFloats, setRewardFloats] = useState<{ id: string; amount: number; statName: string; color: string }[]>([]);
+  const [expandedQuestId, setExpandedQuestId] = useState<string | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
+
+  // Derived rank
+  const currentRank = getSystemRank(character.level);
+
+  useEffect(() => {
+    const hasSeenWelcome = sessionStorage.getItem('rpg_welcome_shown');
+    if (!hasSeenWelcome) {
+      setShowWelcome(true);
+      sessionStorage.setItem('rpg_welcome_shown', 'true');
+      setTimeout(() => setShowWelcome(false), 4500);
+    }
+  }, []);
+
+  // Trigger level up animation
+  useEffect(() => {
+    const savedLevel = localStorage.getItem('rpg_last_level');
+    const currentLevel = character.level;
+    
+    if (savedLevel && parseInt(savedLevel) < currentLevel) {
+      setShowLevelUp(currentLevel);
+      setTimeout(() => setShowLevelUp(null), 3000);
+    }
+    localStorage.setItem('rpg_last_level', currentLevel.toString());
+  }, [character.level]);
 
   const handleApplyPenalty = (penalty: number) => {
+    setScreenShake(true);
+    setTimeout(() => setScreenShake(false), 500);
     setCharacter(prev => {
       const totalExp = (prev.level * 1000) + prev.exp;
       const newTotalExp = Math.max(0, totalExp - penalty);
@@ -265,7 +322,7 @@ export default function App() {
       problems,
       skills,
       theme,
-      version: '4.1'
+      version: '5.0'
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -302,13 +359,77 @@ export default function App() {
 
   return (
     <div className={`min-h-screen bg-[#020617] text-[#f8fafc] font-sans p-4 md:p-8 selection:bg-${tColor}-500 selection:text-white overflow-x-hidden`}>
+      <AnimatePresence>
+        {showWelcome && (
+          <motion.div 
+            initial={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 1 }}
+            className="fixed inset-0 z-[300] bg-[#020617] flex flex-col items-center justify-center overflow-hidden"
+          >
+            {/* GRID OVERLAY */}
+            <div className="absolute inset-0 opacity-10 bg-[linear-gradient(rgba(16,185,129,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(16,185,129,0.1)_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+            
+            <motion.div
+              initial={{ y: 20, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.5, duration: 1 }}
+              className="flex flex-col items-center gap-4 relative z-10"
+            >
+              <motion.div 
+                initial={{ opacity: 0 }}
+                animate={{ opacity: [0, 1, 0.5, 1] }}
+                transition={{ delay: 1, duration: 0.5 }}
+                className={`text-[10px] uppercase font-black tracking-[0.8em] text-${tColor}-400 mb-2`}
+              >
+                System Initializing
+              </motion.div>
+              
+              <h2 className="text-4xl md:text-6xl font-black text-white italic tracking-tighter uppercase text-center px-4 leading-none">
+                Welcome, <br />
+                <span className={`text-${tColor}-500 drop-shadow-[0_0_20px_rgba(var(--color-${tColor}-500),0.3)] px-2`}>{character.name}</span>
+              </h2>
+              
+              <div className="w-64 sm:w-80 h-[2px] bg-slate-800 mt-8 relative overflow-hidden">
+                <motion.div 
+                  initial={{ x: "-100%" }}
+                  animate={{ x: "0%" }}
+                  transition={{ delay: 1.5, duration: 2, ease: "easeInOut" }}
+                  className={`absolute inset-0 bg-gradient-to-r from-transparent via-${tColor}-500 to-transparent`}
+                />
+              </div>
+              
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 3.5, duration: 0.5 }}
+                className="text-slate-500 text-[9px] font-black uppercase tracking-[0.4em] mt-4"
+              >
+                Mapping Neural Interface ... Success
+              </motion.div>
+            </motion.div>
+            
+            {/* AMBIENT SCAN LINE */}
+            <motion.div 
+              animate={{ y: ['-100%', '300%'] }}
+              transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+              className={`absolute inset-x-0 h-10 bg-gradient-to-b from-transparent via-${tColor}-500/5 to-transparent pointer-events-none`}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
       {/* BACKGROUND EFFECTS */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className={`absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-${tColor}-500/10 rounded-full blur-[120px]`}></div>
         <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] bg-purple-500/10 rounded-full blur-[120px]"></div>
       </div>
 
-      <div className="max-w-7xl mx-auto relative z-10 flex flex-col gap-8">
+      <motion.div 
+        animate={screenShake ? { x: [-5, 5, -5, 5, 0], y: [-5, 5, -5, 5, 0] } : {}}
+        transition={{ duration: 0.4 }}
+        className="max-w-7xl mx-auto relative z-10 flex flex-col gap-8"
+      >
         {/* HEADER SECTION */}
         <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-4">
           <div className="flex items-center gap-4">
@@ -316,16 +437,17 @@ export default function App() {
               {character.name.charAt(0)}
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tighter uppercase">
-                {character.name} <span className={`text-${tColor}-400 opacity-50 text-xs font-normal ml-2 tracking-normal`}>SYSTEM v2.0.4</span>
+              <h1 className="text-2xl font-black tracking-tighter uppercase leading-none">
+                {character.name}
               </h1>
-              <div className="flex items-center gap-3 mt-1">
-                <span className={`bg-${tColor}-500/10 text-${tColor}-400 px-2 py-0.5 rounded text-[10px] font-bold border border-${tColor}-500/20 uppercase tracking-widest leading-none`}>LVL {character.level}</span>
-                <span className="bg-emerald-500/10 text-emerald-400 px-2.5 py-0.5 rounded text-[9px] font-black border border-emerald-500/20 uppercase tracking-tighter">{character.rank}</span>
-                <div className="w-32 h-1.5 bg-slate-800 rounded-full overflow-hidden ml-2">
+              <div className="flex items-center gap-2 sm:gap-3 mt-1.5 sm:mt-1">
+                <span className={`bg-${tColor}-500/10 text-${tColor}-400 px-2 sm:px-3 py-1 sm:py-0.5 rounded-md sm:rounded text-[9px] sm:text-[10px] font-bold border border-${tColor}-500/20 uppercase tracking-widest leading-none flex items-center justify-center min-w-[50px] sm:min-w-0`}>LVL {character.level}</span>
+                <span className="bg-emerald-500/10 text-emerald-400 px-2 sm:px-2.5 py-1 sm:py-0.5 rounded-md sm:rounded text-[8px] sm:text-[9px] font-black border border-emerald-500/20 uppercase tracking-tighter flex items-center justify-center min-w-[50px] sm:min-w-0">{currentRank}</span>
+                <div className="w-24 sm:w-32 h-1.5 bg-slate-800 rounded-full overflow-hidden ml-1 sm:ml-2 shrink-0">
                   <motion.div 
                     initial={{ width: 0 }}
                     animate={{ width: `${(character.exp / 1000) * 100}%` }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                     className={`h-full bg-${tColor}-500 rounded-full`}
                   />
                 </div>
@@ -343,7 +465,7 @@ export default function App() {
             </button>
             <div className="hidden sm:flex bg-slate-800/50 px-4 py-2 rounded-full border border-slate-700/50 gap-4 text-xs font-semibold">
               <span className="text-slate-400">EXP: {Math.floor(character.exp)} / 1,000</span>
-              <span className={`text-${tColor}-400 uppercase tracking-tighter`}>Rank: {character.rank}</span>
+              <span className={`text-${tColor}-400 uppercase tracking-tighter`}>Rank: {currentRank}</span>
             </div>
             <button 
               onClick={() => setIsSettingsOpen(true)}
@@ -355,38 +477,8 @@ export default function App() {
         </header>
 
         <main className="grid grid-cols-1 md:grid-cols-12 gap-5 auto-rows-auto">
-          {/* CHARACTER PROFILE - Bento Card */}
-          <div className="md:col-span-4 space-y-5">
-            <section className="bento-card h-full min-h-[200px]">
-              <div className="flex justify-between items-start mb-6">
-                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Character Profile</h2>
-                <button 
-                  onClick={() => setIsSettingsOpen(true)}
-                  className={`text-${tColor}-400 text-[10px] uppercase font-bold hover:underline`}
-                >
-                  Edit Profile
-                </button>
-              </div>
-              <div className="flex items-center gap-6">
-                <div className={`w-24 h-24 rounded-2xl bg-gradient-to-br from-${tColor}-500 to-purple-600 p-1 shadow-xl shadow-${tColor}-500/10`}>
-                  <div className="w-full h-full rounded-[14px] bg-slate-900 flex items-center justify-center">
-                    <span className="text-4xl select-none">⚔️</span>
-                  </div>
-                </div>
-                <div>
-                  <h3 className="text-2xl font-bold tracking-tight">{character.name}</h3>
-                  <p className="text-slate-400 text-sm leading-tight mt-1 truncate max-w-[150px]">{character.title}</p>
-                  <div className="flex gap-2 mt-4">
-                    <span className={`bg-${tColor}-500/10 text-${tColor}-400 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-${tColor}-500/20 uppercase tracking-tighter`}>LVL {character.level}</span>
-                    <span className="bg-emerald-500/10 text-emerald-400 px-2.5 py-1 rounded-lg text-[10px] font-bold border border-emerald-500/20 uppercase tracking-tighter">{character.rank}</span>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-
           {/* STATUS ATTRIBUTES - Bento Card */}
-          <div className="md:col-span-8 flex flex-col">
+          <div className="md:col-span-12 flex flex-col">
             <section className="bento-card h-full">
               <div className="flex justify-between items-start mb-6">
                 <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Status Attributes</h2>
@@ -413,7 +505,7 @@ export default function App() {
                         style={{ backgroundColor: bar.color }}
                         initial={{ width: 0 }}
                         animate={{ width: `${(bar.value / bar.max) * 100}%` }}
-                        transition={{ type: 'spring', stiffness: 50, damping: 20 }}
+                        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
                       />
                     </div>
                   </div>
@@ -482,17 +574,35 @@ export default function App() {
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
-                      className="p-4 rounded-[20px] bg-slate-800/40 border border-slate-700/50 flex flex-col gap-4 group/quest"
+                      onClick={() => setExpandedQuestId(expandedQuestId === quest.id ? null : quest.id)}
+                      className={`p-4 rounded-[20px] bg-slate-800/40 border border-slate-700/50 flex flex-col gap-4 group/quest transition-all cursor-pointer ${expandedQuestId === quest.id ? 'ring-1 ring-emerald-500/30 bg-slate-800' : ''}`}
                     >
                       <div className="flex justify-between items-start">
-                        <h5 className="font-bold text-sm tracking-tight text-white line-clamp-2">{quest.title}</h5>
+                        <h5 className={`font-bold text-sm tracking-tight text-white transition-all ${expandedQuestId === quest.id ? '' : 'line-clamp-2'}`}>{quest.title}</h5>
                         <button 
-                          onClick={() => setSideQuests(sideQuests.filter(q => q.id !== quest.id))}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSideQuests(sideQuests.filter(q => q.id !== quest.id));
+                          }}
                           className="text-slate-500 hover:text-red-400 transition-colors text-xl font-light leading-none"
                         >
                           ×
                         </button>
                       </div>
+
+                      <AnimatePresence>
+                        {expandedQuestId === quest.id && quest.description && (
+                          <motion.p 
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 0.6 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="text-[11px] text-slate-400 leading-relaxed overflow-hidden italic"
+                          >
+                            {quest.description}
+                          </motion.p>
+                        )}
+                      </AnimatePresence>
+
                       <div className="flex justify-between items-center mt-auto">
                         {quest.rewards.map((rew, i) => {
                           const bar = statusBars.find(b => b.id === rew.statusBarId);
@@ -648,7 +758,7 @@ export default function App() {
           </div>
           <p className="text-[9px] text-slate-600 uppercase tracking-widest font-medium">Bento System Interface © 2026</p>
         </footer>
-      </div>
+      </motion.div>
 
       {/* SETTINGS MODAL */}
       <AnimatePresence>
@@ -674,9 +784,9 @@ export default function App() {
 
               <div className="space-y-8 overflow-y-auto max-h-[70vh] pr-2 no-scrollbar">
                 {/* SYSTEM THEME */}
-                <section className="space-y-4">
-                  <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60 block`}>System Theme</label>
-                  <div className="flex gap-4">
+                <section className="space-y-6 flex flex-col items-center">
+                  <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60 block text-center`}>System Theme</label>
+                  <div className="flex gap-6 justify-center flex-wrap">
                     {[
                       { id: 'indigo', color: '#6366f1', label: 'Indigo' },
                       { id: 'rose', color: '#f43f5e', label: 'Rose' },
@@ -701,34 +811,14 @@ export default function App() {
                   </div>
                 </section>
                 {/* CHARACTER IDENTITY */}
-                <section className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-3">
-                    <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60 block`}>Owner Identity</label>
-                    <input 
-                      type="text" 
-                      value={character.name}
-                      onChange={(e) => setCharacter({ ...character, name: e.target.value.toUpperCase() })}
-                      className={`w-full bg-slate-900 border border-[#334155]/50 p-4 rounded-xl text-lg font-bold focus:outline-none focus:border-${tColor}-400 transition-all text-white`}
-                    />
-                  </div>
-                  <div className="space-y-3">
-                    <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60 block`}>Current Rank</label>
-                    <input 
-                      type="text" 
-                      value={character.rank}
-                      onChange={(e) => setCharacter({ ...character, rank: e.target.value.toUpperCase() })}
-                      className={`w-full bg-slate-900 border border-[#334155]/50 p-4 rounded-xl text-lg font-bold focus:outline-none focus:border-${tColor}-400 transition-all text-white`}
-                    />
-                  </div>
-                  <div className="md:col-span-2 space-y-3">
-                    <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60 block`}>System Title</label>
-                    <input 
-                      type="text" 
-                      value={character.title}
-                      onChange={(e) => setCharacter({ ...character, title: e.target.value })}
-                      className={`w-full bg-slate-900 border border-[#334155]/50 p-4 rounded-xl text-lg font-bold focus:outline-none focus:border-${tColor}-400 transition-all text-white`}
-                    />
-                  </div>
+                <section className="space-y-3">
+                  <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60 block`}>Owner Identity</label>
+                  <input 
+                    type="text" 
+                    value={character.name}
+                    onChange={(e) => setCharacter({ ...character, name: e.target.value.toUpperCase() })}
+                    className={`w-full bg-slate-900 border border-[#334155]/50 p-4 rounded-xl text-lg font-bold focus:outline-none focus:border-${tColor}-400 transition-all text-white`}
+                  />
                 </section>
 
                 <hr className={`border-${tColor}-500/10`} />
@@ -981,7 +1071,7 @@ export default function App() {
                    </div>
                    <div>
                       <p className="text-xs font-bold text-white uppercase tracking-tight">{character.name}</p>
-                      <p className={`text-[10px] text-${tColor}-400/60 uppercase font-black tracking-tighter`}>System {character.rank}</p>
+                      <p className={`text-[10px] text-${tColor}-400/60 uppercase font-black tracking-tighter`}>System {currentRank}</p>
                    </div>
                 </div>
               </div>
@@ -1000,11 +1090,11 @@ export default function App() {
             onSave={(data) => {
               const id = uid();
               if (creationModal.type === 'main-quest') {
-                setMainQuest({ id, title: data.title, description: data.description || '', type: 'main', rewards: [] });
+                setMainQuest({ id, title: data.title, description: data.description || '', type: 'main', rewards: data.rewards });
               } else if (creationModal.type === 'side-quest') {
-                setSideQuests([{ id, title: data.title, description: data.description || '', type: 'side', rewards: [{ statusBarId: data.statusBarId, amount: data.amount }] }, ...sideQuests]);
+                setSideQuests([{ id, title: data.title, description: data.description || '', type: 'side', rewards: data.rewards }, ...sideQuests]);
               } else if (creationModal.type === 'grind-task') {
-                setGrindTasks([{ id, title: data.title, rewards: [{ statusBarId: data.statusBarId, amount: data.amount }] }, ...grindTasks]);
+                setGrindTasks([{ id, title: data.title, rewards: data.rewards }, ...grindTasks]);
               } else if (creationModal.type === 'problem') {
                 setProblems([{ id, title: data.title, xpPenalty: data.amount }, ...problems]);
               } else if (creationModal.type === 'skill') {
@@ -1016,6 +1106,61 @@ export default function App() {
         )}
       </AnimatePresence>
       <TailwindSafelist />
+
+      {/* FLOATING REWARDS */}
+      <div className="fixed inset-0 pointer-events-none z-[110]">
+        <AnimatePresence>
+          {rewardFloats.map(float => (
+            <motion.div
+              key={float.id}
+              initial={{ opacity: 0, y: 0, scale: 0.5 }}
+              animate={{ opacity: 1, y: -150, scale: 1 }}
+              exit={{ opacity: 0, scale: 1.5 }}
+              className="absolute bottom-1/2 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
+            >
+              <div 
+                className="px-6 py-3 rounded-2xl bg-slate-900/80 backdrop-blur-md border border-white/10 shadow-2xl flex items-center gap-3"
+                style={{ borderColor: `${float.color}40`, boxShadow: `0 10px 40px ${float.color}20` }}
+              >
+                <div className="w-2 h-2 rounded-full animate-ping" style={{ backgroundColor: float.color }}></div>
+                <span className="text-xl font-black italic uppercase tracking-tighter" style={{ color: float.color }}>
+                  +{float.amount} {float.statName}
+                </span>
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+      </div>
+
+      {/* LEVEL UP OVERLAY */}
+      <AnimatePresence>
+        {showLevelUp && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[200] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm pointer-events-none"
+          >
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 1.1, opacity: 0 }}
+              className="flex flex-col items-center justify-center"
+            >
+              <h2 className="text-6xl md:text-8xl font-black text-emerald-400 italic tracking-tighter uppercase mb-4">
+                Level Up
+              </h2>
+              
+              <div className="flex items-center gap-6">
+                <span className="text-xl text-slate-500 line-through">LVL {showLevelUp - 1}</span>
+                <div className="text-4xl font-black text-white bg-emerald-500 px-6 py-2 rounded-xl">
+                  LVL {showLevelUp}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1023,8 +1168,19 @@ export default function App() {
 function CreationModal({ type, onClose, statusBars, onSave, tColor }: any) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [statusBarId, setStatusBarId] = useState(statusBars[0]?.id || '1');
-  const [amount, setAmount] = useState(10);
+  const [rewards, setRewards] = useState<Reward[]>([]);
+  const [currentStatusBarId, setCurrentStatusBarId] = useState(statusBars[0]?.id || '1');
+  const [currentAmount, setCurrentAmount] = useState(10);
+
+  const addReward = () => {
+    if (currentAmount > 0) {
+      setRewards([...rewards, { statusBarId: currentStatusBarId, amount: currentAmount }]);
+    }
+  };
+
+  const removeReward = (index: number) => {
+    setRewards(rewards.filter((_, i) => i !== index));
+  };
 
   const typeLabels: any = {
     'main-quest': 'Initialize Prime Objective',
@@ -1061,7 +1217,17 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor }: any) {
               autoFocus
               type="text" 
               value={title} 
-              onKeyDown={(e) => e.key === 'Enter' && title && onSave({ title, description, statusBarId, amount })}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && title) {
+                  const finalRewards = (type === 'main-quest' || type === 'side-quest' || type === 'grind-task') ? rewards : [];
+                  onSave({ 
+                    title, 
+                    description, 
+                    rewards: finalRewards,
+                    amount: currentAmount 
+                  });
+                }
+              }}
               onChange={e => setTitle(e.target.value)}
               placeholder="Declare entry..."
               className={`w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl text-white focus:border-${tColor}-500 outline-none transition-all`}
@@ -1085,45 +1251,82 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor }: any) {
                <label className="text-[10px] font-bold text-rose-400/60 uppercase tracking-widest pl-1">XP Penalty Amount</label>
                <input 
                 type="number" 
-                value={amount} 
-                onChange={e => setAmount(Number(e.target.value))}
+                value={currentAmount} 
+                onChange={e => setCurrentAmount(Number(e.target.value))}
                 className="w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl text-white focus:border-rose-500 outline-none transition-all"
                />
             </div>
           )}
 
-          {(type === 'side-quest' || type === 'grind-task') && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                 <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>Target Stat</label>
-                 <div className="relative">
-                   <select 
-                     value={statusBarId} 
-                     onChange={e => setStatusBarId(e.target.value)}
-                     className={`w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl text-white focus:border-${tColor}-500 outline-none transition-all appearance-none cursor-pointer`}
-                   >
-                     {statusBars.map((bar: any) => <option key={bar.id} value={bar.id}>{bar.name}</option>)}
-                   </select>
-                   <div className={`absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-${tColor}-400`}>
-                     <Target size={14} />
+          {(type === 'main-quest' || type === 'side-quest' || type === 'grind-task') && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                   <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>Target Stat</label>
+                   <div className="relative">
+                     <select 
+                       value={currentStatusBarId} 
+                       onChange={e => setCurrentStatusBarId(e.target.value)}
+                       className={`w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl text-white focus:border-${tColor}-500 outline-none transition-all appearance-none cursor-pointer text-sm`}
+                     >
+                       {statusBars.map((bar: any) => <option key={bar.id} value={bar.id}>{bar.name}</option>)}
+                     </select>
+                     <div className={`absolute right-4 top-1/2 -translate-y-1/2 pointer-events-none text-${tColor}-400`}>
+                       <Target size={14} />
+                     </div>
                    </div>
-                 </div>
+                </div>
+                <div className="space-y-2">
+                   <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>Amount</label>
+                   <div className="flex gap-2">
+                     <input 
+                      type="number" 
+                      value={currentAmount} 
+                      onChange={e => setCurrentAmount(Number(e.target.value))}
+                      className={`w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl text-white focus:border-${tColor}-500 outline-none transition-all text-sm`}
+                     />
+                     <button 
+                       onClick={addReward}
+                       className={`px-4 bg-${tColor}-600 rounded-xl hover:bg-${tColor}-500 transition-all text-white`}
+                     >
+                       <Plus size={20} />
+                     </button>
+                   </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                 <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>Reward Value</label>
-                 <input 
-                  type="number" 
-                  value={amount} 
-                  onChange={e => setAmount(Number(e.target.value))}
-                  className={`w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl text-white focus:border-${tColor}-500 outline-none transition-all`}
-                 />
-              </div>
+
+              {rewards.length > 0 && (
+                <div className="space-y-2">
+                  <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>Configured Rewards</label>
+                  <div className="flex flex-wrap gap-2">
+                    {rewards.map((rew, idx) => {
+                      const bar = statusBars.find((b: any) => b.id === rew.statusBarId);
+                      return (
+                        <div key={idx} className="flex items-center gap-2 bg-slate-800/50 border border-slate-700 px-3 py-1.5 rounded-full">
+                          <span className="text-[10px] font-bold text-white">+{rew.amount} {bar?.name}</span>
+                          <button onClick={() => removeReward(idx)} className="text-rose-400 hover:text-rose-300">
+                            <X size={12} />
+                          </button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
           <button 
-            onClick={() => onSave({ title, description, statusBarId, amount })}
-            disabled={!title}
+            onClick={() => {
+              const finalRewards = (type === 'main-quest' || type === 'side-quest' || type === 'grind-task') ? rewards : [];
+              onSave({ 
+                title, 
+                description, 
+                rewards: finalRewards,
+                amount: currentAmount // For problems which use a single value
+              });
+            }}
+            disabled={!title || ((type === 'side-quest' || type === 'grind-task') && rewards.length === 0)}
             className={`w-full py-4 bg-${tColor}-600 hover:bg-${tColor}-500 text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all shadow-lg shadow-${tColor}-600/20 disabled:opacity-50 disabled:grayscale mt-2`}
           >
             Confirm Registration

@@ -43,8 +43,6 @@ export interface Skill {
 
 export interface Character {
   name: string;
-  title: string;
-  rank: string;
   level: number;
   exp: number;
 }
