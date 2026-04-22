@@ -48,3 +48,10 @@ export interface Character {
 }
 
 export type CreationType = 'side-quest' | 'grind-task' | 'problem' | 'main-quest' | 'skill';
+
+export interface LogEntry {
+  id: string;
+  type: CreationType;
+  title: string;
+  timestamp: number;
+}

@@ -18,7 +18,8 @@ import {
   RotateCcw,
   Book,
   Menu,
-  ChevronLeft
+  ChevronLeft,
+  History
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -29,8 +30,10 @@ import {
   Character, 
   Reward,
   CreationType,
-  Skill 
+  Skill,
+  LogEntry
 } from './types';
+import { Language, translations } from './i18n';
 
 // Simple UID generator
 const uid = () => Math.random().toString(36).substring(2, 9);
@@ -56,15 +59,15 @@ export default function App() {
     try {
       const saved = localStorage.getItem('rpg_character');
       return saved ? JSON.parse(saved) : { 
-        name: 'SUNG JIN-WOO', 
-        level: 1, 
-        exp: 0 
+        name: 'SOLO LEVELLER', 
+        level: 5, 
+        exp: 450 
       };
     } catch (e) {
       return { 
-        name: 'SUNG JIN-WOO', 
-        level: 1, 
-        exp: 0 
+        name: 'SOLO LEVELLER', 
+        level: 5, 
+        exp: 450 
       };
     }
   });
@@ -73,15 +76,17 @@ export default function App() {
     try {
       const saved = localStorage.getItem('rpg_statusBars');
       return saved ? JSON.parse(saved).map((bar: any) => ({ ...bar, repeatCount: bar.repeatCount || 0 })) : [
-        { id: '1', name: 'HP', color: '#ef4444', value: 80, max: 100, repeatCount: 0 },
-        { id: '2', name: 'MP', color: '#3b82f6', value: 50, max: 100, repeatCount: 0 },
-        { id: '3', name: 'Fatigue', color: '#a855f7', value: 20, max: 100, repeatCount: 0 },
+        { id: '1', name: 'HP', color: '#ef4444', value: 85, max: 100, repeatCount: 0 },
+        { id: '2', name: 'MP', color: '#3b82f6', value: 40, max: 100, repeatCount: 0 },
+        { id: '3', name: 'STAMINA', color: '#10b981', value: 60, max: 100, repeatCount: 0 },
+        { id: '4', name: 'INTEL', color: '#a855f7', value: 15, max: 100, repeatCount: 0 },
       ];
     } catch (e) {
       return [
-        { id: '1', name: 'HP', color: '#ef4444', value: 80, max: 100, repeatCount: 0 },
-        { id: '2', name: 'MP', color: '#3b82f6', value: 50, max: 100, repeatCount: 0 },
-        { id: '3', name: 'Fatigue', color: '#a855f7', value: 20, max: 100, repeatCount: 0 },
+        { id: '1', name: 'HP', color: '#ef4444', value: 85, max: 100, repeatCount: 0 },
+        { id: '2', name: 'MP', color: '#3b82f6', value: 40, max: 100, repeatCount: 0 },
+        { id: '3', name: 'STAMINA', color: '#10b981', value: 60, max: 100, repeatCount: 0 },
+        { id: '4', name: 'INTEL', color: '#a855f7', value: 15, max: 100, repeatCount: 0 },
       ];
     }
   });
@@ -91,18 +96,22 @@ export default function App() {
       const saved = localStorage.getItem('rpg_mainQuest');
       return saved ? JSON.parse(saved) : {
         id: 'main-1',
-        title: 'Become the Strongest',
-        description: 'Break your limits and ascend to the throne of shadows.',
+        title: 'AWAKEN THE MONARCH',
+        description: 'Transcend the limits of a human core. Achieve level 10 to unlock hidden potential.',
         type: 'main',
-        rewards: []
+        rewards: [
+          { statusBarId: 'exp', amount: 1000 }
+        ]
       };
     } catch (e) {
       return {
         id: 'main-1',
-        title: 'Become the Strongest',
-        description: 'Break your limits and ascend to the throne of shadows.',
+        title: 'AWAKEN THE MONARCH',
+        description: 'Transcend the limits of a human core. Achieve level 10 to unlock hidden potential.',
         type: 'main',
-        rewards: []
+        rewards: [
+          { statusBarId: 'exp', amount: 1000 }
+        ]
       };
     }
   });
@@ -110,7 +119,28 @@ export default function App() {
   const [sideQuests, setSideQuests] = useState<Quest[]>(() => {
     try {
       const saved = localStorage.getItem('rpg_sideQuests');
-      return saved ? JSON.parse(saved) : [];
+      return saved ? JSON.parse(saved) : [
+        {
+          id: 'sq-1',
+          title: 'Daily Run (10KM)',
+          description: 'Build your base stamina through consistent cardio.',
+          type: 'side-quest',
+          rewards: [
+            { statusBarId: '3', amount: 20 },
+            { statusBarId: 'exp', amount: 50 }
+          ]
+        },
+        {
+          id: 'sq-2',
+          title: 'Deep Meditation',
+          description: 'Focus your mind to expand your mana pool.',
+          type: 'side-quest',
+          rewards: [
+            { statusBarId: '2', amount: 15 },
+            { statusBarId: '4', amount: 5 }
+          ]
+        }
+      ];
     } catch (e) {
       return [];
     }
@@ -119,7 +149,26 @@ export default function App() {
   const [grindTasks, setGrindTasks] = useState<GrindTask[]>(() => {
     try {
       const saved = localStorage.getItem('rpg_grindTasks');
-      return saved ? JSON.parse(saved) : [];
+      return saved ? JSON.parse(saved) : [
+        {
+          id: 'gt-1',
+          title: 'Set of Pushups',
+          type: 'grind-task',
+          rewards: [
+            { statusBarId: '1', amount: 2 },
+            { statusBarId: '3', amount: 5 }
+          ]
+        },
+        {
+          id: 'gt-2',
+          title: 'Deep Work Session',
+          type: 'grind-task',
+          rewards: [
+            { statusBarId: '4', amount: 10 },
+            { statusBarId: 'exp', amount: 15 }
+          ]
+        }
+      ];
     } catch (e) {
       return [];
     }
@@ -128,7 +177,18 @@ export default function App() {
   const [problems, setProblems] = useState<Problem[]>(() => {
     try {
       const saved = localStorage.getItem('rpg_problems');
-      return saved ? JSON.parse(saved) : [];
+      return saved ? JSON.parse(saved) : [
+        {
+          id: 'prob-1',
+          title: 'System Fatigue',
+          xpPenalty: 50,
+        },
+        {
+          id: 'prob-2',
+          title: 'Mental Fog',
+          xpPenalty: 25,
+        }
+      ];
     } catch (e) {
       return [];
     }
@@ -137,6 +197,21 @@ export default function App() {
   const [skills, setSkills] = useState<Skill[]>(() => {
     try {
       const saved = localStorage.getItem('rpg_skills');
+      return saved ? JSON.parse(saved) : [
+        { id: 'sk-1', name: 'Sprint', level: 1, description: 'Increased movement speed.' },
+        { id: 'sk-2', name: 'Focus', level: 1, description: 'Enhanced mental clarity.' }
+      ];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('rpg_lang') as Language) || 'en');
+  const lang = translations[language];
+
+  const [logs, setLogs] = useState<LogEntry[]>(() => {
+    try {
+      const saved = localStorage.getItem('rpg_logs');
       return saved ? JSON.parse(saved) : [];
     } catch (e) {
       return [];
@@ -197,10 +272,22 @@ export default function App() {
     localStorage.setItem('rpg_grindTasks', JSON.stringify(grindTasks));
     localStorage.setItem('rpg_problems', JSON.stringify(problems));
     localStorage.setItem('rpg_skills', JSON.stringify(skills));
+    localStorage.setItem('rpg_logs', JSON.stringify(logs));
     localStorage.setItem('rpg_theme', theme);
-  }, [character, statusBars, mainQuest, sideQuests, grindTasks, problems, skills, theme]);
+    localStorage.setItem('rpg_lang', language);
+  }, [character, statusBars, mainQuest, sideQuests, grindTasks, problems, skills, theme, language, logs]);
 
   // --- ACTIONS ---
+
+  const addLog = (type: CreationType, title: string) => {
+    const newEntry: LogEntry = {
+      id: uid(),
+      type,
+      title,
+      timestamp: Date.now()
+    };
+    setLogs(prev => [newEntry, ...prev].slice(0, 100));
+  };
 
   const handleClaimReward = (rewards: Reward[]) => {
     let totalOverflow = 0;
@@ -258,7 +345,8 @@ export default function App() {
     }
   };
 
-  const [activeConfirmation, setActiveConfirmation] = useState<'reset-stats' | 'wipe-system' | null>(null);
+  const [activeConfirmation, setActiveConfirmation] = useState<'reset-stats' | 'load-example' | 'erase-all' | null>(null);
+  const [editingStatId, setEditingStatId] = useState<string | null>(null);
 
   const [creationModal, setCreationModal] = useState<{
     isOpen: boolean;
@@ -270,6 +358,15 @@ export default function App() {
 
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isLogOpen, setIsLogOpen] = useState(false);
+  const [confirmClearLogs, setConfirmClearLogs] = useState(false);
+
+  // Reset confirmation when sidebar closes
+  useEffect(() => {
+    if (!isLogOpen) {
+      setConfirmClearLogs(false);
+    }
+  }, [isLogOpen]);
   const [showLevelUp, setShowLevelUp] = useState<number | null>(null);
   const [screenShake, setScreenShake] = useState(false);
   const [rewardFloats, setRewardFloats] = useState<{ id: string; amount: number; statName: string; color: string }[]>([]);
@@ -312,6 +409,25 @@ export default function App() {
     });
   };
 
+  const handleLoadExample = () => {
+    localStorage.clear();
+    window.location.reload();
+  };
+
+  const handleEraseAll = () => {
+    localStorage.setItem('rpg_character', JSON.stringify({ name: '', level: 1, exp: 0 }));
+    localStorage.setItem('rpg_statusBars', JSON.stringify([]));
+    localStorage.setItem('rpg_mainQuest', 'null');
+    localStorage.setItem('rpg_sideQuests', JSON.stringify([]));
+    localStorage.setItem('rpg_grindTasks', JSON.stringify([]));
+    localStorage.setItem('rpg_problems', JSON.stringify([]));
+    localStorage.setItem('rpg_skills', JSON.stringify([]));
+    localStorage.setItem('rpg_logs', JSON.stringify([]));
+    localStorage.setItem('rpg_theme', 'indigo');
+    localStorage.setItem('rpg_lang', language);
+    window.location.reload();
+  };
+
   const handleExport = () => {
     const data = {
       character,
@@ -348,9 +464,9 @@ export default function App() {
         if (data.problems) setProblems(data.problems);
         if (data.skills) setSkills(data.skills);
         if (data.theme) setTheme(data.theme);
-        alert('System Synchronization Successful');
+        alert(lang.syncSuccessful);
       } catch (err) {
-        alert('Invalid System Data Map incompatible with current protocol.');
+        alert(lang.syncIncompatible);
       }
     };
     reader.readAsText(file);
@@ -382,11 +498,11 @@ export default function App() {
                 transition={{ delay: 1, duration: 0.5 }}
                 className={`text-[10px] uppercase font-black tracking-[0.8em] text-${tColor}-400 mb-2`}
               >
-                System Initializing
+                {lang.systemInitializing}
               </motion.div>
               
               <h2 className="text-4xl md:text-6xl font-black text-white italic tracking-tighter uppercase text-center px-4 leading-none">
-                Welcome, <br />
+                {lang.welcome}, <br />
                 <span className={`text-${tColor}-500 drop-shadow-[0_0_20px_rgba(var(--color-${tColor}-500),0.3)] px-2`}>{character.name}</span>
               </h2>
               
@@ -405,7 +521,7 @@ export default function App() {
                 transition={{ delay: 3.5, duration: 0.5 }}
                 className="text-slate-500 text-[9px] font-black uppercase tracking-[0.4em] mt-4"
               >
-                Mapping Neural Interface ... Success
+                {lang.neuralMapping}
               </motion.div>
             </motion.div>
             
@@ -441,7 +557,7 @@ export default function App() {
                 {character.name}
               </h1>
               <div className="flex items-center gap-2 sm:gap-3 mt-1.5 sm:mt-1">
-                <span className={`bg-${tColor}-500/10 text-${tColor}-400 px-2 sm:px-3 py-1 sm:py-0.5 rounded-md sm:rounded text-[9px] sm:text-[10px] font-bold border border-${tColor}-500/20 uppercase tracking-widest leading-none flex items-center justify-center min-w-[50px] sm:min-w-0`}>LVL {character.level}</span>
+                <span className={`bg-${tColor}-500/10 text-${tColor}-400 px-2 sm:px-3 py-1 sm:py-0.5 rounded-md sm:rounded text-[9px] sm:text-[10px] font-bold border border-${tColor}-500/20 uppercase tracking-widest leading-none flex items-center justify-center min-w-[50px] sm:min-w-0`}>{lang.lvl} {character.level}</span>
                 <span className="bg-emerald-500/10 text-emerald-400 px-2 sm:px-2.5 py-1 sm:py-0.5 rounded-md sm:rounded text-[8px] sm:text-[9px] font-black border border-emerald-500/20 uppercase tracking-tighter flex items-center justify-center min-w-[50px] sm:min-w-0">{currentRank}</span>
                 <div className="w-24 sm:w-32 h-1.5 bg-slate-800 rounded-full overflow-hidden ml-1 sm:ml-2 shrink-0">
                   <motion.div 
@@ -457,15 +573,22 @@ export default function App() {
           
           <div className="flex gap-4 items-center w-full md:w-auto">
             <button 
+              onClick={() => setIsLogOpen(true)}
+              className={`p-2.5 bg-${tColor}-600/20 hover:bg-${tColor}-600/30 border border-${tColor}-500/30 rounded-full text-${tColor}-400 transition-all flex items-center gap-2 px-4 group`}
+            >
+              <History size={18} className="group-hover:scale-110 transition-transform" />
+              <span className="text-[10px] uppercase font-black tracking-widest hidden sm:inline">{lang.dailyLog}</span>
+            </button>
+            <button 
               onClick={() => setIsSidebarOpen(true)}
               className={`p-2.5 bg-${tColor}-600/20 hover:bg-${tColor}-600/30 border border-${tColor}-500/30 rounded-full text-${tColor}-400 transition-all flex items-center gap-2 px-4 group`}
             >
               <Book size={18} className="group-hover:scale-110 transition-transform" />
-              <span className="text-[10px] uppercase font-black tracking-widest hidden sm:inline">Skills</span>
+              <span className="text-[10px] uppercase font-black tracking-widest hidden sm:inline">{lang.skills}</span>
             </button>
             <div className="hidden sm:flex bg-slate-800/50 px-4 py-2 rounded-full border border-slate-700/50 gap-4 text-xs font-semibold">
-              <span className="text-slate-400">EXP: {Math.floor(character.exp)} / 1,000</span>
-              <span className={`text-${tColor}-400 uppercase tracking-tighter`}>Rank: {currentRank}</span>
+              <span className="text-slate-400">{lang.exp}: {Math.floor(character.exp)} / 1,000</span>
+              <span className={`text-${tColor}-400 uppercase tracking-tighter`}>{lang.rank}: {currentRank}</span>
             </div>
             <button 
               onClick={() => setIsSettingsOpen(true)}
@@ -481,12 +604,12 @@ export default function App() {
           <div className="md:col-span-12 flex flex-col">
             <section className="bento-card h-full">
               <div className="flex justify-between items-start mb-6">
-                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Status Attributes</h2>
+                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{lang.statusAttributes}</h2>
                 <button 
                   onClick={() => setIsSettingsOpen(true)}
                   className={`text-${tColor}-400 text-[10px] uppercase font-bold hover:underline`}
                 >
-                  + New Bar
+                  + {lang.newBar}
                 </button>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-6">
@@ -525,16 +648,19 @@ export default function App() {
                 <div className="flex flex-col md:flex-row md:items-center gap-6 relative z-10">
                   <div className="shrink-0 scale-75 md:scale-100">
                     <div className={`px-4 py-1.5 bg-${tColor}-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg shadow-${tColor}-500/20`}>
-                      Main Quest
+                      {lang.mainQuest}
                     </div>
                   </div>
                   <div className="flex-1">
                     <h4 className={`text-xl font-bold tracking-tight text-white mb-1 group-hover:text-${tColor}-300 transition-colors`}>{mainQuest.title}</h4>
-                    <p className="text-slate-400 text-sm italic opacity-70">Objective: {mainQuest.description || 'Ascend beyond the final limit.'}</p>
+                    <p className="text-slate-400 text-sm italic opacity-70">{lang.objective}: {mainQuest.description || 'Ascend beyond the final limit.'}</p>
                   </div>
                   <div className="flex items-center gap-6 text-slate-500 text-sm">
                     <button 
-                      onClick={() => setMainQuest(null)}
+                      onClick={() => {
+                        if (mainQuest) addLog('main-quest', mainQuest.title);
+                        setMainQuest(null);
+                      }}
                       className="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-400 transition-all rounded-lg"
                     >
                       <Trash2 size={16} />
@@ -548,7 +674,7 @@ export default function App() {
                 className={`w-full bento-card border-dashed border-slate-700 bg-transparent hover:bg-${tColor}-500/5 hover:border-${tColor}-500/30 transition-all flex flex-row items-center justify-center gap-3 text-slate-500 h-[80px]`}
               >
                 <Plus size={20} />
-                <span className="uppercase text-xs font-bold tracking-[0.2em]">Initialize Prime Directive</span>
+                <span className="uppercase text-xs font-bold tracking-[0.2em]">{lang.initializePrimeDirective}</span>
               </button>
             )}
           </div>
@@ -557,7 +683,7 @@ export default function App() {
           <div className="md:col-span-4 row-span-3">
             <section className="bento-card h-full min-h-[400px]">
               <div className="flex justify-between items-center mb-8">
-                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Side Quests</h2>
+                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{lang.sideQuests}</h2>
                 <button 
                   onClick={() => setCreationModal({ isOpen: true, type: 'side-quest' })}
                   className={`w-8 h-8 rounded-full bg-slate-800 hover:bg-${tColor}-600 transition-all flex items-center justify-center text-white text-lg`}
@@ -617,12 +743,13 @@ export default function App() {
                         })}
                         <button 
                           onClick={() => {
+                            addLog('side-quest', quest.title);
                             handleClaimReward(quest.rewards);
                             setSideQuests(sideQuests.filter(q => q.id !== quest.id));
                           }}
-                          className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-black rounded-lg px-4 py-1.5 text-[10px] font-bold uppercase transition-all"
+                          className="bg-emerald-500 text-black border border-emerald-400 hover:bg-emerald-400 rounded-lg px-4 py-2 text-[11px] font-black uppercase transition-all shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:scale-105 active:scale-95"
                         >
-                          Claim
+                          {lang.claim}
                         </button>
                       </div>
                     </motion.div>
@@ -631,7 +758,7 @@ export default function App() {
                 {sideQuests.length === 0 && (
                   <div className="py-12 flex flex-col items-center justify-center gap-3 opacity-20 grayscale border-2 border-dashed border-slate-800 rounded-[20px]">
                     <Target size={32} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest">No active side goals</span>
+                    <span className="text-[10px] font-bold uppercase tracking-widest">{lang.noActiveSideGoals}</span>
                   </div>
                 )}
               </div>
@@ -677,10 +804,13 @@ export default function App() {
                         );
                       })}
                       <button 
-                        onClick={() => handleClaimReward(task.rewards)}
-                        className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500 hover:text-black rounded-lg px-4 py-1.5 text-[10px] font-bold uppercase transition-all flex items-center gap-2"
+                        onClick={() => {
+                          addLog('grind-task', task.title);
+                          handleClaimReward(task.rewards);
+                        }}
+                        className="bg-emerald-500 text-black border border-emerald-400 hover:bg-emerald-400 rounded-lg px-4 py-2 text-[11px] font-black uppercase transition-all flex items-center gap-2 shadow-[0_0_15px_rgba(16,185,129,0.3)] hover:scale-105 active:scale-95"
                       >
-                         <RotateCcw size={12} /> Claim
+                         <RotateCcw size={12} /> {lang.claim}
                       </button>
                     </div>
                   </motion.div>
@@ -699,7 +829,7 @@ export default function App() {
           <div className="md:col-span-4 row-span-3">
             <section className="bento-card h-full min-h-[400px]">
               <div className="flex justify-between items-center mb-8">
-                <h2 className="text-[10px] font-bold text-rose-500/50 uppercase tracking-widest">Active Problems</h2>
+                <h2 className="text-[10px] font-bold text-rose-500/50 uppercase tracking-widest">{lang.activeThreats}</h2>
                 <button 
                    onClick={() => setCreationModal({ isOpen: true, type: 'problem' })}
                    className="w-8 h-8 rounded-full bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center text-lg shadow-lg shadow-rose-500/5"
@@ -718,15 +848,18 @@ export default function App() {
                       <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
                       <div className="flex flex-col">
                         <span className="text-sm font-medium text-slate-300">{prob.title}</span>
-                        {prob.xpPenalty > 0 && <span className="text-[9px] text-rose-500/60 font-bold uppercase">Penalty: -{prob.xpPenalty} XP</span>}
+                        {prob.xpPenalty > 0 && <span className="text-[9px] text-rose-500/60 font-bold uppercase">Penalty: -{prob.xpPenalty} {lang.exp}</span>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button 
-                        onClick={() => handleApplyPenalty(prob.xpPenalty)}
-                        className="text-[10px] bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-black px-2 py-1 rounded-lg border border-rose-500/20 font-bold uppercase transition-all"
+                        onClick={() => {
+                          addLog('problem', prob.title);
+                          handleApplyPenalty(prob.xpPenalty);
+                        }}
+                        className="text-[11px] bg-rose-500 text-black hover:bg-rose-400 px-3 py-1.5 rounded-lg border border-rose-400 font-black uppercase transition-all shadow-[0_0_15px_rgba(244,63,94,0.3)] hover:scale-105 active:scale-95"
                       >
-                        Accept
+                        {lang.accept}
                       </button>
                       <button 
                         onClick={() => setProblems(problems.filter(p => p.id !== prob.id))}
@@ -740,12 +873,12 @@ export default function App() {
                 {problems.length === 0 && (
                   <div className="py-12 flex flex-col items-center justify-center gap-3 opacity-20 border-2 border-dashed border-slate-800 rounded-[20px]">
                      <AlertCircle size={32} />
-                     <span className="text-[10px] font-bold uppercase tracking-widest">Stability: Optimal</span>
+                     <span className="text-[10px] font-bold uppercase tracking-widest">{lang.noActiveThreats}</span>
                   </div>
                 )}
               </div>
               <div className="mt-auto pt-6 border-t border-slate-800 text-[10px] text-slate-500 text-center italic leading-relaxed opacity-60">
-                 Every problem is a hidden quest for systematic growth.
+                 {lang.wipeWarning}
               </div>
             </section>
           </div>
@@ -776,17 +909,37 @@ export default function App() {
               className={`w-full max-w-2xl bg-[#0a0a0a] border border-${tColor}-500/50 rounded-[32px] p-6 md:p-8 shadow-[0_0_50px_rgba(79,70,229,0.2)]`}
             >
               <div className={`flex justify-between items-center mb-8 pb-4 border-b border-${tColor}-500/20`}>
-                <h2 className="text-2xl font-black text-white uppercase tracking-tighter italic">System Configuration</h2>
+                <h2 className="text-2xl font-black text-white uppercase tracking-tighter italic">{lang.systemConfig}</h2>
                 <button onClick={() => setIsSettingsOpen(false)} className={`p-2 hover:bg-white/5 rounded-full transition-colors text-${tColor}-500`}>
                   <X />
                 </button>
               </div>
 
-              <div className="space-y-8 overflow-y-auto max-h-[70vh] pr-2 no-scrollbar">
+              <div className="space-y-8 overflow-y-auto max-h-[70vh] pr-2 no-scrollbar text-left">
+                {/* LANGUAGE SELECTION */}
+                <section className="space-y-4 flex flex-col items-center">
+                  <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60 block`}>{lang.language}</label>
+                  <div className="flex gap-2 w-full max-w-sm">
+                    {(['en', 'fr', 'ru'] as Language[]).map((l) => (
+                      <button
+                        key={l}
+                        onClick={() => setLanguage(l)}
+                        className={`flex-1 py-3 rounded-xl border font-black text-[10px] uppercase tracking-widest transition-all ${
+                          language === l 
+                            ? `bg-${tColor}-600 border-${tColor}-500 text-white shadow-lg shadow-${tColor}-600/20` 
+                            : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700'
+                        }`}
+                      >
+                        {l === 'en' ? 'English' : l === 'fr' ? 'Français' : 'Русский'}
+                      </button>
+                    ))}
+                  </div>
+                </section>
+
                 {/* SYSTEM THEME */}
                 <section className="space-y-6 flex flex-col items-center">
-                  <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60 block text-center`}>System Theme</label>
-                  <div className="flex gap-6 justify-center flex-wrap">
+                  <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60 block`}>{lang.systemTheme}</label>
+                  <div className="flex gap-6 flex-wrap justify-center">
                     {[
                       { id: 'indigo', color: '#6366f1', label: 'Indigo' },
                       { id: 'rose', color: '#f43f5e', label: 'Rose' },
@@ -811,43 +964,46 @@ export default function App() {
                   </div>
                 </section>
                 {/* CHARACTER IDENTITY */}
-                <section className="space-y-3">
-                  <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60 block`}>Owner Identity</label>
+                <section className="space-y-3 flex flex-col items-center">
+                  <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60 block`}>{lang.ownerIdentity}</label>
                   <input 
                     type="text" 
                     value={character.name}
                     onChange={(e) => setCharacter({ ...character, name: e.target.value.toUpperCase() })}
-                    className={`w-full bg-slate-900 border border-[#334155]/50 p-4 rounded-xl text-lg font-bold focus:outline-none focus:border-${tColor}-400 transition-all text-white`}
+                    className={`w-full max-w-sm bg-slate-900 border border-[#334155]/50 p-4 rounded-xl text-lg font-bold focus:outline-none focus:border-${tColor}-400 transition-all text-white text-center`}
                   />
                 </section>
 
                 <hr className={`border-${tColor}-500/10`} />
 
                 {/* STATUS BARS MANAGEMENT */}
-                <section className="space-y-6">
-                  <div className="flex justify-between items-end">
-                    <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60`}>Status Parameters</label>
-                    <div className="flex gap-4">
+                <section className="space-y-4 flex flex-col items-center">
+                  <div className="flex flex-col gap-4 w-full items-center">
+                    <div className="flex justify-between items-center w-full px-2">
+                      <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60`}>{lang.statusParameters}</label>
+                      
                       {activeConfirmation === 'reset-stats' ? (
                         <div className="flex items-center gap-2">
-                           <span className="text-[8px] font-black uppercase text-rose-500 animate-pulse">Confirm Reset?</span>
+                           <span className="text-[8px] font-black uppercase text-rose-500 animate-pulse">{lang.confirmReset}</span>
                            <div className="flex gap-1">
                              <button 
                               onClick={() => {
                                 setStatusBars([
-                                  { id: '1', name: 'HP', color: '#ef4444', value: 80, max: 100, repeatCount: 0 },
-                                  { id: '2', name: 'MP', color: '#3b82f6', value: 50, max: 100, repeatCount: 0 },
-                                  { id: '3', name: 'Fatigue', color: '#a855f7', value: 20, max: 100, repeatCount: 0 },
+                                  { id: '1', name: 'HP', color: '#ef4444', value: 85, max: 100, repeatCount: 0 },
+                                  { id: '2', name: 'MP', color: '#3b82f6', value: 40, max: 100, repeatCount: 0 },
+                                  { id: '3', name: 'STAMINA', color: '#10b981', value: 60, max: 100, repeatCount: 0 },
+                                  { id: '4', name: 'INTEL', color: '#a855f7', value: 15, max: 100, repeatCount: 0 },
                                 ]);
                                 setActiveConfirmation(null);
+                                setEditingStatId(null);
                               }}
-                              className="bg-rose-500 text-black px-2 py-0.5 rounded text-[8px] font-black uppercase"
+                              className="bg-rose-500 text-black px-2 py-0.5 rounded text-[8px] font-black uppercase shadow-lg shadow-rose-500/20"
                              >
                                Yes
                              </button>
                              <button 
                               onClick={() => setActiveConfirmation(null)}
-                              className="text-slate-500 text-[8px] font-black uppercase px-2 py-0.5"
+                              className="text-white/40 hover:text-white text-[8px] font-black uppercase px-2 py-0.5"
                              >
                                No
                              </button>
@@ -856,115 +1012,204 @@ export default function App() {
                       ) : (
                         <button 
                           onClick={() => setActiveConfirmation('reset-stats')}
-                          className="text-[10px] uppercase font-bold text-rose-500 hover:text-rose-400 flex items-center gap-1"
+                          className="text-[10px] uppercase font-bold text-rose-500 hover:text-rose-400 flex items-center gap-1 opacity-60 hover:opacity-100 transition-opacity"
                         >
-                          <RotateCcw size={14} /> Reset
+                          <RotateCcw size={14} /> {lang.reset}
                         </button>
                       )}
-                      <button 
-                        onClick={() => setStatusBars([...statusBars, { id: uid(), name: 'NEW STAT', color: '#6366f1', value: 0, max: 100, repeatCount: 0 }])}
-                        className={`text-[10px] uppercase font-bold text-${tColor}-400 hover:text-${tColor}-300 flex items-center gap-1`}
-                      >
-                        <Plus size={14} /> Add Parameter
-                      </button>
                     </div>
-                  </div>
 
-                  <div className="space-y-4">
-                    {statusBars.map(bar => (
-                      <div key={bar.id} className="grid grid-cols-1 md:grid-cols-4 gap-4 p-4 bg-slate-900 border border-slate-800 rounded-2xl group relative">
-                        <div className="space-y-1">
-                          <label className="text-[8px] uppercase opacity-50 block">Name</label>
-                          <input 
-                            type="text" 
-                            value={bar.name}
-                            onChange={(e) => setStatusBars(statusBars.map(b => b.id === bar.id ? { ...b, name: e.target.value } : b))}
-                            className={`bg-transparent border-b border-${tColor}-500/30 py-1 w-full text-xs font-bold focus:outline-none focus:border-${tColor}-400`}
-                          />
+                    <div className="bg-slate-900 border border-white/5 rounded-2xl p-4 space-y-4 w-full flex flex-col items-center">
+                      {/* Active Chips & Adder */}
+                      <div className="space-y-3 w-full flex flex-col items-center">
+                        <div className="flex justify-center w-full">
+                          <span className="text-[8px] font-bold text-white/30 uppercase tracking-[0.2em]">Active Parameters</span>
                         </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] uppercase opacity-50 block">Value / Max</label>
-                          <div className="flex items-center gap-2">
-                             <input 
-                                type="number" 
-                                value={bar.value}
-                                onChange={(e) => setStatusBars(statusBars.map(b => b.id === bar.id ? { ...b, value: Number(e.target.value) } : b))}
-                                className={`bg-transparent border-b border-${tColor}-500/30 py-1 w-full text-xs font-bold focus:outline-none`}
-                              />
-                              <span className="text-white/20">/</span>
-                              <input 
-                                type="number" 
-                                value={bar.max}
-                                onChange={(e) => setStatusBars(statusBars.map(b => b.id === bar.id ? { ...b, max: Number(e.target.value) } : b))}
-                                className={`bg-transparent border-b border-${tColor}-500/30 py-1 w-full text-xs font-bold focus:outline-none`}
-                              />
-                          </div>
-                        </div>
-                        <div className="space-y-1">
-                          <label className="text-[8px] uppercase opacity-50 block">Color</label>
-                          <input 
-                            type="color" 
-                            value={bar.color}
-                            onChange={(e) => setStatusBars(statusBars.map(b => b.id === bar.id ? { ...b, color: e.target.value } : b))}
-                            className="w-full h-8 bg-transparent border-none p-0 cursor-pointer rounded overflow-hidden"
-                          />
-                        </div>
-                        <div className="flex items-end justify-center">
-                          <button 
-                            onClick={() => setStatusBars(statusBars.filter(b => b.id !== bar.id))}
-                            className="text-rose-500/50 hover:text-rose-500 p-2 transition-colors"
+
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {statusBars.map(bar => (
+                            <button
+                              key={bar.id}
+                              onClick={() => setEditingStatId(editingStatId === bar.id ? null : bar.id)}
+                              className={`px-3 py-1.5 rounded-xl border flex items-center gap-2 transition-all group ${
+                                editingStatId === bar.id 
+                                  ? `bg-${tColor}-500/20 border-${tColor}-500/40 ring-1 ring-${tColor}-500/30` 
+                                  : 'bg-black/40 border-white/5 hover:border-white/20'
+                              }`}
+                            >
+                               <div className="w-2 h-2 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: bar.color }} />
+                               <div className="flex flex-col items-start leading-none">
+                                 <span className={`text-[10px] font-black uppercase tracking-wide ${editingStatId === bar.id ? `text-${tColor}-400` : 'text-white/80'}`}>{bar.name}</span>
+                                 <span className="text-[7px] font-mono font-bold opacity-30 group-hover:opacity-60 transition-opacity">{bar.value}/{bar.max}</span>
+                               </div>
+                            </button>
+                          ))}
+
+                          <button
+                            onClick={() => {
+                              const newId = uid();
+                              setStatusBars([...statusBars, { id: newId, name: 'NEW STAT', color: '#6366f1', value: 0, max: 100, repeatCount: 0 }]);
+                              setEditingStatId(newId);
+                            }}
+                            className={`px-3 py-1.5 bg-${tColor}-500/10 hover:bg-${tColor}-500/20 border border-dashed border-${tColor}-500/30 rounded-xl flex items-center gap-2 transition-all text-${tColor}-400 group`}
                           >
-                            <Trash2 size={16} />
+                             <div className={`w-5 h-5 rounded-lg bg-${tColor}-500/20 flex items-center justify-center group-hover:scale-110 transition-transform`}>
+                               <Plus size={12} />
+                             </div>
+                             <span className="text-[9px] font-black uppercase tracking-wider">{lang.addParameter}</span>
                           </button>
                         </div>
                       </div>
-                    ))}
+                    </div>
                   </div>
+
+                  {/* Inline Editor */}
+                  <AnimatePresence mode="wait">
+                    {editingStatId && statusBars.find(b => b.id === editingStatId) && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="bg-slate-900 border border-white/10 rounded-2xl p-5 relative overflow-hidden shadow-2xl w-full max-w-sm mx-auto"
+                      >
+                         <div className={`absolute top-0 left-0 w-1 h-full bg-${tColor}-500`} />
+                         
+                         <div className="flex justify-between items-center mb-4">
+                           <h4 className="text-[10px] font-black uppercase tracking-[0.2em] text-white/40">Configuration Meta</h4>
+                           <button onClick={() => setEditingStatId(null)} className="text-white/20 hover:text-white transition-colors">
+                              <X size={14} />
+                           </button>
+                         </div>
+
+                         <div className="grid grid-cols-1 gap-4">
+                            <div className="space-y-1.5 flex flex-col items-center">
+                              <label className="text-[8px] uppercase font-bold text-white/30 tracking-widest">{lang.name}</label>
+                              <input 
+                                type="text" 
+                                value={statusBars.find(b => b.id === editingStatId)?.name || ''}
+                                onChange={(e) => setStatusBars(statusBars.map(b => b.id === editingStatId ? { ...b, name: e.target.value.toUpperCase() } : b))}
+                                className={`bg-slate-950 border border-white/5 rounded-lg px-3 py-2 w-full text-center text-xs font-bold focus:outline-none focus:border-${tColor}-500/50 text-white transition-all`}
+                              />
+                            </div>
+
+                            <div className="space-y-1.5 flex flex-col items-center">
+                              <label className="text-[8px] uppercase font-bold text-white/30 tracking-widest">{lang.valueMax}</label>
+                              <div className="flex items-center gap-2 bg-slate-950 border border-white/5 rounded-lg px-2 w-full justify-center">
+                                 <input 
+                                    type="number" 
+                                    value={statusBars.find(b => b.id === editingStatId)?.value || 0}
+                                    onChange={(e) => setStatusBars(statusBars.map(b => b.id === editingStatId ? { ...b, value: Number(e.target.value) } : b))}
+                                    className="bg-transparent py-2 w-16 text-center text-xs font-mono font-bold text-white focus:outline-none"
+                                  />
+                                  <span className="text-white/10 text-xs">/</span>
+                                  <input 
+                                    type="number" 
+                                    value={statusBars.find(b => b.id === editingStatId)?.max || 100}
+                                    onChange={(e) => setStatusBars(statusBars.map(b => b.id === editingStatId ? { ...b, max: Number(e.target.value) } : b))}
+                                    className="bg-transparent py-2 w-16 text-center text-xs font-mono font-bold text-white/60 focus:outline-none"
+                                  />
+                              </div>
+                            </div>
+
+                            <div className="flex flex-col gap-3">
+                               <div className="space-y-1.5 flex flex-col items-center">
+                                  <label className="text-[8px] uppercase font-bold text-white/30 tracking-widest">{lang.color}</label>
+                                  <div className="relative group w-full max-w-[100px]">
+                                    <input 
+                                      type="color" 
+                                      value={statusBars.find(b => b.id === editingStatId)?.color || '#ffffff'}
+                                      onChange={(e) => setStatusBars(statusBars.map(b => b.id === editingStatId ? { ...b, color: e.target.value } : b))}
+                                      className="w-full h-8 bg-transparent border-none p-0 cursor-pointer rounded-lg overflow-hidden shrink-0"
+                                    />
+                                    <div className="absolute inset-0 pointer-events-none border border-white/10 rounded-lg group-hover:border-white/30 transition-colors" />
+                                  </div>
+                               </div>
+                               <button 
+                                  onClick={() => {
+                                    setStatusBars(statusBars.filter(b => b.id !== editingStatId));
+                                    setEditingStatId(null);
+                                  }}
+                                  className="w-full py-2 bg-rose-500/10 hover:bg-rose-500 text-rose-500 hover:text-black rounded-lg transition-all text-[8px] font-black uppercase tracking-widest flex items-center justify-center gap-2"
+                               >
+                                 <Trash2 size={12} /> {lang.delete}
+                               </button>
+                            </div>
+                         </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                 </section>
                 
                 <hr className={`border-${tColor}-500/10`} />
 
                 {/* EMERGENCY PROTOCOLS */}
-                <section className="space-y-4">
-                  <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60 block`}>Emergency Protocols</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <section className="space-y-4 flex flex-col items-center">
+                  <label className={`text-[10px] uppercase font-bold tracking-[0.3em] text-${tColor}-400/60 block text-center`}>{lang.dangerZone}</label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 w-full">
                     <button 
                       onClick={handleExport}
                       className={`py-3 bg-slate-900 border border-slate-800 text-slate-300 hover:border-${tColor}-500/50 hover:text-white transition-all rounded-xl uppercase text-[10px] font-black tracking-widest flex items-center justify-center gap-2`}
                     >
-                      Export Map
+                      {lang.exportMap}
                     </button>
                     <label className={`py-3 bg-slate-900 border border-slate-800 text-slate-300 hover:border-${tColor}-500/50 hover:text-white transition-all rounded-xl uppercase text-[10px] font-black tracking-widest flex items-center justify-center gap-2 cursor-pointer`}>
-                      Import Map
+                      {lang.importMap}
                       <input type="file" className="hidden" accept=".json" onChange={handleImport} />
                     </label>
-                    {activeConfirmation === 'wipe-system' ? (
-                      <div className="py-3 bg-rose-500/10 border border-rose-500 rounded-xl flex items-center justify-between px-4">
-                         <span className="text-[10px] font-black uppercase text-rose-500">CONFIRM PROTOCOL PURGE?</span>
-                         <div className="flex gap-2">
+
+                    {/* LOAD EXAMPLE */}
+                    {activeConfirmation === 'load-example' ? (
+                      <div className="py-2 bg-emerald-500/10 border border-emerald-500 rounded-xl flex flex-col items-center justify-center px-4 gap-1">
+                         <span className="text-[7px] font-bold uppercase text-emerald-500 leading-tight">Proceed?</span>
+                         <div className="flex gap-1">
                            <button 
-                            onClick={() => {
-                              localStorage.clear();
-                              window.location.reload();
-                            }}
-                            className="px-3 py-1 bg-rose-500 text-black rounded text-[10px] font-black"
+                            onClick={handleLoadExample}
+                            className="px-2 py-0.5 bg-emerald-500 text-black rounded text-[8px] font-black uppercase"
                            >
-                             WIPE
+                             Yes
                            </button>
                            <button 
                             onClick={() => setActiveConfirmation(null)}
-                            className="px-3 py-1 bg-slate-800 text-white rounded text-[10px] font-black"
+                            className="px-2 py-0.5 bg-slate-800 text-white rounded text-[8px] font-black uppercase"
                            >
-                             ABORT
+                             No
                            </button>
                          </div>
                       </div>
                     ) : (
                       <button 
-                        onClick={() => setActiveConfirmation('wipe-system')}
+                        onClick={() => setActiveConfirmation('load-example')}
+                        className={`py-3 bg-slate-900 border border-slate-800 text-slate-300 hover:border-${tColor}-500/50 hover:text-white transition-all rounded-xl uppercase text-[10px] font-black tracking-widest flex items-center justify-center gap-2`}
+                      >
+                        {lang.loadExample}
+                      </button>
+                    )}
+
+                    {/* ERASE ALL */}
+                    {activeConfirmation === 'erase-all' ? (
+                      <div className="py-2 bg-rose-500/10 border border-rose-500 rounded-xl flex flex-col items-center justify-center px-4 gap-1">
+                         <span className="text-[7px] font-bold uppercase text-rose-500 leading-tight">Destroy?</span>
+                         <div className="flex gap-1">
+                           <button 
+                            onClick={handleEraseAll}
+                            className="px-2 py-0.5 bg-rose-500 text-black rounded text-[8px] font-black uppercase"
+                           >
+                             Yes
+                           </button>
+                           <button 
+                            onClick={() => setActiveConfirmation(null)}
+                            className="px-2 py-0.5 bg-slate-800 text-white rounded text-[8px] font-black uppercase"
+                           >
+                             No
+                           </button>
+                         </div>
+                      </div>
+                    ) : (
+                      <button 
+                        onClick={() => setActiveConfirmation('erase-all')}
                         className="py-3 bg-rose-500/5 border border-rose-500/20 text-rose-500 hover:bg-rose-500/10 transition-all rounded-xl uppercase text-[10px] font-black tracking-widest flex items-center justify-center gap-2"
                       >
-                        System Wipe
+                        {lang.eraseAll}
                       </button>
                     )}
                   </div>
@@ -981,6 +1226,101 @@ export default function App() {
               </div>
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {isLogOpen && (
+          <div className="fixed inset-0 z-50 overflow-hidden pointer-events-none">
+            <motion.div 
+               initial={{ opacity: 0 }}
+               animate={{ opacity: 1 }}
+               exit={{ opacity: 0 }}
+               onClick={() => setIsLogOpen(false)}
+               className="absolute inset-0 bg-black/60 backdrop-blur-sm pointer-events-auto"
+            />
+            <motion.aside 
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%' }}
+              transition={{ type: 'spring', damping: 25, stiffness: 200 }}
+              className={`absolute left-0 top-0 h-full w-full max-w-[400px] bg-[#020617] border-r border-${tColor}-500/20 shadow-2xl pointer-events-auto flex flex-col`}
+            >
+              <div className={`p-8 flex justify-between items-center border-b border-${tColor}-500/10`}>
+                 <div className="flex items-center gap-3">
+                   <History className={`text-${tColor}-500`} size={24} />
+                   <h2 className="text-xl font-black uppercase tracking-tighter text-white italic">{lang.dailyLog}</h2>
+                 </div>
+                 <button onClick={() => setIsLogOpen(false)} className="p-2 hover:bg-white/5 rounded-full text-slate-500">
+                    <ChevronLeft size={24} />
+                 </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto p-8 space-y-6 no-scrollbar">
+                <div className="flex justify-between items-end mb-2">
+                   <h3 className={`text-[10px] font-black uppercase tracking-[0.3em] text-${tColor}-400`}>Neural History</h3>
+                   <div className="flex items-center gap-2">
+                     {confirmClearLogs ? (
+                       <>
+                         <button 
+                           onClick={() => {
+                             setLogs([]);
+                             setConfirmClearLogs(false);
+                           }}
+                           className="text-[10px] uppercase font-black text-white bg-rose-600 hover:bg-rose-500 px-3 py-1 rounded border border-rose-500 shadow-[0_0_10px_rgba(225,29,72,0.4)] transition-all animate-pulse"
+                         >
+                           CONFIRM PURGE
+                         </button>
+                         <button 
+                           onClick={() => setConfirmClearLogs(false)}
+                           className="text-[10px] uppercase font-bold text-slate-500 hover:text-white"
+                         >
+                           Cancel
+                         </button>
+                       </>
+                     ) : (
+                       <button 
+                        onClick={() => setConfirmClearLogs(true)}
+                        className="text-[10px] uppercase font-bold text-rose-500/60 hover:text-rose-400"
+                       >
+                         Clear Log
+                       </button>
+                     )}
+                   </div>
+                </div>
+                
+                <div className="space-y-3">
+                  {logs.length > 0 ? logs.map(log => {
+                    const time = new Date(log.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    const styles = {
+                      'main-quest': { bg: 'bg-amber-500/20', text: 'text-amber-400', border: 'border-amber-500/30' },
+                      'side-quest': { bg: 'bg-emerald-500/20', text: 'text-emerald-400', border: 'border-emerald-500/30' },
+                      'grind-task': { bg: 'bg-indigo-500/20', text: 'text-indigo-400', border: 'border-indigo-500/30' },
+                      'problem': { bg: 'bg-rose-500/20', text: 'text-rose-400', border: 'border-rose-500/30' },
+                      'skill': { bg: 'bg-purple-500/20', text: 'text-purple-400', border: 'border-purple-500/30' }
+                    }[log.type] || { bg: `bg-${tColor}-500/20`, text: `text-${tColor}-400`, border: `border-${tColor}-500/30` };
+
+                    return (
+                      <div key={log.id} className={`p-4 bg-slate-900/80 border ${styles.border} rounded-2xl flex items-center gap-4 group transition-all hover:bg-slate-800`}>
+                        <div className={`w-10 h-10 rounded-xl ${styles.bg} flex items-center justify-center text-[10px] font-black uppercase ${styles.text} border ${styles.border} shadow-[0_0_10px_rgba(0,0,0,0.3)]`}>
+                          {lang.typeLabelsShort?.[log.type] || '??'}
+                        </div>
+                        <div className="flex-1">
+                          <p className={`text-xs font-black ${styles.text} uppercase tracking-tight line-clamp-1`}>{log.title}</p>
+                          <p className="text-[10px] text-slate-500 uppercase tracking-widest mt-0.5 font-bold italic">{time}</p>
+                        </div>
+                      </div>
+                    );
+                  }) : (
+                    <div className="py-20 border-2 border-dashed border-slate-800 rounded-3xl flex flex-col items-center justify-center opacity-20 grayscale">
+                      <History size={32} />
+                      <span className="text-[10px] font-black uppercase tracking-widest mt-3">{lang.noLogs}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.aside>
+          </div>
         )}
       </AnimatePresence>
 
@@ -1014,12 +1354,12 @@ export default function App() {
               <div className="flex-1 overflow-y-auto p-8 space-y-8 no-scrollbar">
                 <section className="space-y-6">
                   <div className="flex justify-between items-center">
-                    <h3 className={`text-[10px] font-black uppercase tracking-[0.3em] text-${tColor}-400`}>Class Skills</h3>
+                    <h3 className={`text-[10px] font-black uppercase tracking-[0.3em] text-${tColor}-400`}>{lang.characterProfile}</h3>
                     <button 
                       onClick={() => setCreationModal({ isOpen: true, type: 'skill' })}
                       className={`text-[10px] font-black uppercase bg-${tColor}-500/10 text-${tColor}-400 px-3 py-1 rounded-full border border-${tColor}-500/20 hover:bg-${tColor}-500 hover:text-black transition-all`}
                     >
-                      Imprint Skill
+                      {lang.newSkill}
                     </button>
                   </div>
 
@@ -1034,7 +1374,7 @@ export default function App() {
                          <div className="flex justify-between items-start mb-2">
                            <h4 className="font-bold text-white tracking-tight">{skill.name}</h4>
                            <div className="flex items-center gap-2">
-                              <span className={`text-[10px] font-bold text-${tColor}-400`}>LVL {skill.level}</span>
+                              <span className={`text-[10px] font-bold text-${tColor}-400`}>{lang.lvl} {skill.level}</span>
                               <button 
                                 onClick={() => setSkills(skills.filter(s => s.id !== skill.id))}
                                 className="text-slate-600 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
@@ -1049,17 +1389,16 @@ export default function App() {
                     {skills.length === 0 && (
                       <div className="py-12 border-2 border-dashed border-slate-800 rounded-3xl flex flex-col items-center justify-center opacity-20 grayscale">
                         <Zap size={32} />
-                        <span className="text-[10px] font-black uppercase tracking-widest mt-3">No skills imprinted</span>
+                        <span className="text-[10px] font-black uppercase tracking-widest mt-3">{lang.noSkills}</span>
                       </div>
                     )}
                   </div>
                 </section>
 
                 <section className="p-6 rounded-3xl bg-slate-900/50 border border-slate-800 space-y-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">Mastery Intel</h4>
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">{lang.masteryIntel}</h4>
                   <p className="text-[10px] text-slate-400 leading-relaxed italic opacity-70">
-                    As your level ascends, your skills will automatically evolve to fit your growing power. 
-                    Manage your Skills to optimize pathing.
+                    {lang.skillsDescription}
                   </p>
                 </section>
               </div>
@@ -1087,6 +1426,7 @@ export default function App() {
             onClose={() => setCreationModal({ isOpen: false, type: null })}
             statusBars={statusBars}
             tColor={tColor}
+            lang={lang}
             onSave={(data) => {
               const id = uid();
               if (creationModal.type === 'main-quest') {
@@ -1148,13 +1488,13 @@ export default function App() {
               className="flex flex-col items-center justify-center"
             >
               <h2 className="text-6xl md:text-8xl font-black text-emerald-400 italic tracking-tighter uppercase mb-4">
-                Level Up
+                {lang.levelUp}
               </h2>
               
               <div className="flex items-center gap-6">
-                <span className="text-xl text-slate-500 line-through">LVL {showLevelUp - 1}</span>
+                <span className="text-xl text-slate-500 line-through">{lang.lvl} {showLevelUp - 1}</span>
                 <div className="text-4xl font-black text-white bg-emerald-500 px-6 py-2 rounded-xl">
-                  LVL {showLevelUp}
+                  {lang.lvl} {showLevelUp}
                 </div>
               </div>
             </motion.div>
@@ -1165,7 +1505,7 @@ export default function App() {
   );
 }
 
-function CreationModal({ type, onClose, statusBars, onSave, tColor }: any) {
+function CreationModal({ type, onClose, statusBars, onSave, tColor, lang }: any) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [rewards, setRewards] = useState<Reward[]>([]);
@@ -1182,13 +1522,7 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor }: any) {
     setRewards(rewards.filter((_, i) => i !== index));
   };
 
-  const typeLabels: any = {
-    'main-quest': 'Initialize Prime Objective',
-    'side-quest': 'Register Branch Quest',
-    'grind-task': 'Create Loop Directive',
-    'problem': 'Identify System Threat',
-    'skill': 'Imprint Class Skill'
-  };
+  const typeLabels = lang.typeLabels;
 
   return (
     <motion.div 
@@ -1212,7 +1546,7 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor }: any) {
         
         <div className="space-y-6">
           <div className="space-y-2">
-            <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>Identity / Name</label>
+            <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>{lang.identityName}</label>
             <input 
               autoFocus
               type="text" 
@@ -1229,18 +1563,18 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor }: any) {
                 }
               }}
               onChange={e => setTitle(e.target.value)}
-              placeholder="Declare entry..."
+              placeholder={lang.declareEntry}
               className={`w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl text-white focus:border-${tColor}-500 outline-none transition-all`}
             />
           </div>
 
           {(type === 'main-quest' || type === 'side-quest' || type === 'skill') && (
             <div className="space-y-2">
-              <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>Objective Details</label>
+              <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>{lang.description}</label>
               <textarea 
                 value={description} 
                 onChange={e => setDescription(e.target.value)}
-                placeholder={type === 'skill' ? 'Describe the skill effect...' : 'Elaborate on the task...'}
+                placeholder={lang.optionalDetails}
                 className={`w-full bg-slate-900 border border-slate-800 p-4 rounded-2xl text-white focus:border-${tColor}-500 outline-none transition-all h-28 resize-none`}
               />
             </div>
@@ -1248,7 +1582,7 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor }: any) {
 
           {type === 'problem' && (
             <div className="space-y-2">
-               <label className="text-[10px] font-bold text-rose-400/60 uppercase tracking-widest pl-1">XP Penalty Amount</label>
+               <label className="text-[10px] font-bold text-rose-400/60 uppercase tracking-widest pl-1">{lang.exp} Penalty {lang.amount}</label>
                <input 
                 type="number" 
                 value={currentAmount} 
@@ -1262,7 +1596,7 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor }: any) {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                   <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>Target Stat</label>
+                   <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>{lang.statusParameters}</label>
                    <div className="relative">
                      <select 
                        value={currentStatusBarId} 
@@ -1277,7 +1611,7 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor }: any) {
                    </div>
                 </div>
                 <div className="space-y-2">
-                   <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>Amount</label>
+                   <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>{lang.amount}</label>
                    <div className="flex gap-2">
                      <input 
                       type="number" 
@@ -1297,7 +1631,7 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor }: any) {
 
               {rewards.length > 0 && (
                 <div className="space-y-2">
-                  <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>Configured Rewards</label>
+                  <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>{lang.configuredRewards}</label>
                   <div className="flex flex-wrap gap-2">
                     {rewards.map((rew, idx) => {
                       const bar = statusBars.find((b: any) => b.id === rew.statusBarId);
@@ -1329,7 +1663,7 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor }: any) {
             disabled={!title || ((type === 'side-quest' || type === 'grind-task') && rewards.length === 0)}
             className={`w-full py-4 bg-${tColor}-600 hover:bg-${tColor}-500 text-white font-black uppercase text-xs tracking-widest rounded-2xl transition-all shadow-lg shadow-${tColor}-600/20 disabled:opacity-50 disabled:grayscale mt-2`}
           >
-            Confirm Registration
+            {lang.registerEntry}
           </button>
         </div>
       </motion.div>
