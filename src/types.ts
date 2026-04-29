@@ -113,3 +113,19 @@ export interface LogEntry {
   title: string;
   timestamp: number;
 }
+
+export interface SystemState {
+  character: Character;
+  statusBars: StatusBar[];
+  mainQuest: Quest | null;
+  sideQuests: Quest[];
+  grindTasks: GrindTask[];
+  problems: Problem[];
+  skills: Skill[];
+  habits: Habit[];
+  habitHistory: DailyHistory[];
+  lastResetDate: string;
+  logs: LogEntry[];
+  language: string;
+  theme: string;
+}

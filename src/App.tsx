@@ -535,6 +535,11 @@ export default function App() {
       grindTasks,
       problems,
       skills,
+      habits,
+      habitHistory,
+      lastResetDate,
+      logs,
+      language,
       theme,
       version: '5.0'
     };
@@ -546,6 +551,8 @@ export default function App() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+
 
   /**
    * Reads a system state JSON file and hydrates the application backup.
@@ -564,6 +571,10 @@ export default function App() {
         if (data.grindTasks) setGrindTasks(data.grindTasks);
         if (data.problems) setProblems(data.problems);
         if (data.skills) setSkills(data.skills);
+        if (data.habits) setHabits(data.habits);
+        if (data.habitHistory) setHabitHistory(data.habitHistory);
+        if (data.logs) setLogs(data.logs);
+        if (data.language) setLanguage(data.language);
         if (data.theme) setTheme(data.theme);
         alert(lang.syncSuccessful);
       } catch (err) {
@@ -892,7 +903,7 @@ export default function App() {
                       <Target size={20} />
                     )}
                   </div>
-                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity relative z-20">
                           {!isClaimed && (
                             <button 
                               onClick={(e) => {
@@ -904,10 +915,10 @@ export default function App() {
                                 }
                               }}
                               disabled={!isFinished}
-                              className={`p-2 rounded-lg ${isFinished ? `bg-emerald-500 text-black hover:bg-emerald-400` : 'bg-slate-800 text-slate-500'} transition-all`}
+                              className={`p-2.5 rounded-xl ${isFinished ? `bg-emerald-500 text-black shadow-lg shadow-emerald-500/20` : 'bg-slate-800 text-slate-500'} transition-all`}
                               title={isFinished ? "Claim Reward" : "Complete all subtasks first"}
                             >
-                              <Award size={14} />
+                              <Award size={16} />
                             </button>
                           )}
                           <button 
@@ -915,9 +926,9 @@ export default function App() {
                               e.stopPropagation();
                               setHabits(habits.filter(h => h.id !== habit.id));
                             }}
-                            className="p-2 bg-slate-800 text-slate-400 hover:text-red-400 rounded-lg transition-all"
+                            className="p-2.5 bg-slate-800 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-xl transition-all"
                           >
-                            <Trash2 size={14} />
+                            <Trash2 size={16} />
                           </button>
                         </div>
                       </div>
@@ -1762,7 +1773,7 @@ export default function App() {
                               <button 
                                 onClick={() => setSkills(skills.filter(s => s.id !== skill.id))}
                                 aria-label={`${lang.delete} ${skill.name}`}
-                                className="text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all focus-visible:opacity-100 focus-visible:text-rose-500 outline-none"
+                                className="text-slate-400 hover:text-rose-500 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-all focus-visible:opacity-100 focus-visible:text-rose-500 outline-none"
                               >
                                 <Trash2 size={14} />
                               </button>
