@@ -3,13 +3,24 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect } from 'react';
+/**
+ * System Core - App.tsx
+ * ---------------------
+ * This is the main application component that manages:
+ * 1. Global State (Character, Stats, Quests, Skills)
+ * 2. Persistence (LocalStorage Synchronization)
+ * 3. Gameplay Mechanics (Rewards, Penalties, Leveling)
+ * 4. UI Rendering (Responsive Layout, Modals, Animations)
+ */
+
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   User, 
   Settings, 
   Plus, 
   Trash2, 
   CheckCircle2, 
+  Check,
   Target, 
   Sword, 
   AlertCircle, 
@@ -17,9 +28,15 @@ import {
   Zap,
   RotateCcw,
   Book,
+  Heart,
   Menu,
   ChevronLeft,
-  History
+  History,
+  Sun,
+  LayoutGrid,
+  BarChart3,
+  Flame,
+  Award
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { 
@@ -31,14 +48,97 @@ import {
   Reward,
   CreationType,
   Skill,
+  Habit,
+  DailyHistory,
   LogEntry
 } from './types';
 import { Language, translations } from './i18n';
 
-// Simple UID generator
+// ==========================================
+// UTILITIES & CONSTANTS
+// ==========================================
+
+const DEFAULTS = {
+  character: { name: 'SOLO LEVELLER', level: 5, exp: 450 },
+  statusBars: [
+    { id: '1', name: 'HP', color: '#ef4444', value: 85, max: 100, repeatCount: 0 },
+    { id: '2', name: 'MP', color: '#3b82f6', value: 40, max: 100, repeatCount: 0 },
+    { id: '3', name: 'STAMINA', color: '#10b981', value: 60, max: 100, repeatCount: 0 },
+    { id: '4', name: 'INTEL', color: '#a855f7', value: 15, max: 100, repeatCount: 0 },
+  ],
+  mainQuest: {
+    id: 'main-1',
+    title: 'AWAKEN THE MONARCH',
+    description: 'Transcend the limits of a human core. Achieve level 10 to unlock hidden potential.',
+    type: 'main' as any,
+    rewards: [{ statusBarId: 'exp', amount: 1000 }]
+  },
+  sideQuests: [
+    {
+      id: 'sq-1',
+      title: 'Daily Run (10KM)',
+      description: 'Build your base stamina through consistent cardio.',
+      type: 'side-quest' as any,
+      rewards: [{ statusBarId: '3', amount: 20 }, { statusBarId: 'exp', amount: 50 }]
+    },
+    {
+      id: 'sq-2',
+      title: 'Deep Meditation',
+      description: 'Focus your mind to expand your mana pool.',
+      type: 'side-quest' as any,
+      rewards: [{ statusBarId: '2', amount: 15 }, { statusBarId: '4', amount: 5 }]
+    }
+  ],
+  grindTasks: [
+    {
+      id: 'gt-1',
+      title: 'Set of Pushups',
+      type: 'grind-task' as any,
+      rewards: [{ statusBarId: '1', amount: 2 }, { statusBarId: '3', amount: 5 }]
+    },
+    {
+      id: 'gt-2',
+      title: 'Deep Work Session',
+      type: 'grind-task' as any,
+      rewards: [{ statusBarId: '4', amount: 10 }, { statusBarId: 'exp', amount: 15 }]
+    }
+  ],
+  problems: [
+    { id: 'prob-1', title: 'System Fatigue', xpPenalty: 50 },
+    { id: 'prob-2', title: 'Mental Fog', xpPenalty: 25 }
+  ],
+  skills: [
+    { id: 'sk-1', name: 'Sprint', level: 1, description: 'Increased movement speed.' },
+    { id: 'sk-2', name: 'Focus', level: 1, description: 'Enhanced mental clarity.' }
+  ],
+  habits: [
+    {
+      id: 'h-1',
+      title: 'Morning Routine',
+      icon: 'Sun',
+      color: '#f59e0b',
+      subtasks: [
+        { id: 'st-1', text: 'Hydrate (500ml)', completed: false },
+        { id: 'st-2', text: 'Sunlight exposure', completed: false },
+        { id: 'st-3', text: 'Read 5 pages', completed: false }
+      ],
+      rewards: [{ statusBarId: 'exp', amount: 50 }, { statusBarId: '4', amount: 5 }]
+    }
+  ],
+  habitHistory: [],
+  lastResetDate: new Date().toISOString().split('T')[0],
+  logs: [],
+  theme: 'indigo',
+  language: 'en' as Language
+};
+
+// Simple UID generator for new tasks, skills, etc.
 const uid = () => Math.random().toString(36).substring(2, 9);
 
-// Auto-Rank Calculation
+/**
+ * Auto-Rank Calculation Logic
+ * Maps character levels to stylized RPG ranks.
+ */
 const getSystemRank = (level: number) => {
   if (level >= 100) return 'ALPHA';
   if (level >= 90) return 'Z-RANK';
@@ -54,172 +154,127 @@ const getSystemRank = (level: number) => {
 };
 
 export default function App() {
-  // --- INITIAL STATE ---
-  const [character, setCharacter] = useState<Character>(() => {
-    try {
-      const saved = localStorage.getItem('rpg_character');
-      return saved ? JSON.parse(saved) : { 
-        name: 'SOLO LEVELLER', 
-        level: 5, 
-        exp: 450 
-      };
-    } catch (e) {
-      return { 
-        name: 'SOLO LEVELLER', 
-        level: 5, 
-        exp: 450 
-      };
-    }
-  });
-
-  const [statusBars, setStatusBars] = useState<StatusBar[]>(() => {
-    try {
-      const saved = localStorage.getItem('rpg_statusBars');
-      return saved ? JSON.parse(saved).map((bar: any) => ({ ...bar, repeatCount: bar.repeatCount || 0 })) : [
-        { id: '1', name: 'HP', color: '#ef4444', value: 85, max: 100, repeatCount: 0 },
-        { id: '2', name: 'MP', color: '#3b82f6', value: 40, max: 100, repeatCount: 0 },
-        { id: '3', name: 'STAMINA', color: '#10b981', value: 60, max: 100, repeatCount: 0 },
-        { id: '4', name: 'INTEL', color: '#a855f7', value: 15, max: 100, repeatCount: 0 },
-      ];
-    } catch (e) {
-      return [
-        { id: '1', name: 'HP', color: '#ef4444', value: 85, max: 100, repeatCount: 0 },
-        { id: '2', name: 'MP', color: '#3b82f6', value: 40, max: 100, repeatCount: 0 },
-        { id: '3', name: 'STAMINA', color: '#10b981', value: 60, max: 100, repeatCount: 0 },
-        { id: '4', name: 'INTEL', color: '#a855f7', value: 15, max: 100, repeatCount: 0 },
-      ];
-    }
-  });
-
-  const [mainQuest, setMainQuest] = useState<Quest | null>(() => {
-    try {
-      const saved = localStorage.getItem('rpg_mainQuest');
-      return saved ? JSON.parse(saved) : {
-        id: 'main-1',
-        title: 'AWAKEN THE MONARCH',
-        description: 'Transcend the limits of a human core. Achieve level 10 to unlock hidden potential.',
-        type: 'main',
-        rewards: [
-          { statusBarId: 'exp', amount: 1000 }
-        ]
-      };
-    } catch (e) {
-      return {
-        id: 'main-1',
-        title: 'AWAKEN THE MONARCH',
-        description: 'Transcend the limits of a human core. Achieve level 10 to unlock hidden potential.',
-        type: 'main',
-        rewards: [
-          { statusBarId: 'exp', amount: 1000 }
-        ]
-      };
-    }
-  });
-
-  const [sideQuests, setSideQuests] = useState<Quest[]>(() => {
-    try {
-      const saved = localStorage.getItem('rpg_sideQuests');
-      return saved ? JSON.parse(saved) : [
-        {
-          id: 'sq-1',
-          title: 'Daily Run (10KM)',
-          description: 'Build your base stamina through consistent cardio.',
-          type: 'side-quest',
-          rewards: [
-            { statusBarId: '3', amount: 20 },
-            { statusBarId: 'exp', amount: 50 }
-          ]
-        },
-        {
-          id: 'sq-2',
-          title: 'Deep Meditation',
-          description: 'Focus your mind to expand your mana pool.',
-          type: 'side-quest',
-          rewards: [
-            { statusBarId: '2', amount: 15 },
-            { statusBarId: '4', amount: 5 }
-          ]
-        }
-      ];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const [grindTasks, setGrindTasks] = useState<GrindTask[]>(() => {
-    try {
-      const saved = localStorage.getItem('rpg_grindTasks');
-      return saved ? JSON.parse(saved) : [
-        {
-          id: 'gt-1',
-          title: 'Set of Pushups',
-          type: 'grind-task',
-          rewards: [
-            { statusBarId: '1', amount: 2 },
-            { statusBarId: '3', amount: 5 }
-          ]
-        },
-        {
-          id: 'gt-2',
-          title: 'Deep Work Session',
-          type: 'grind-task',
-          rewards: [
-            { statusBarId: '4', amount: 10 },
-            { statusBarId: 'exp', amount: 15 }
-          ]
-        }
-      ];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const [problems, setProblems] = useState<Problem[]>(() => {
-    try {
-      const saved = localStorage.getItem('rpg_problems');
-      return saved ? JSON.parse(saved) : [
-        {
-          id: 'prob-1',
-          title: 'System Fatigue',
-          xpPenalty: 50,
-        },
-        {
-          id: 'prob-2',
-          title: 'Mental Fog',
-          xpPenalty: 25,
-        }
-      ];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const [skills, setSkills] = useState<Skill[]>(() => {
-    try {
-      const saved = localStorage.getItem('rpg_skills');
-      return saved ? JSON.parse(saved) : [
-        { id: 'sk-1', name: 'Sprint', level: 1, description: 'Increased movement speed.' },
-        { id: 'sk-2', name: 'Focus', level: 1, description: 'Enhanced mental clarity.' }
-      ];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const [language, setLanguage] = useState<Language>(() => (localStorage.getItem('rpg_lang') as Language) || 'en');
-  const lang = translations[language];
-
-  const [logs, setLogs] = useState<LogEntry[]>(() => {
-    try {
-      const saved = localStorage.getItem('rpg_logs');
-      return saved ? JSON.parse(saved) : [];
-    } catch (e) {
-      return [];
-    }
-  });
-
-  const [theme, setTheme] = useState<string>(() => localStorage.getItem('rpg_theme') || 'indigo');
+  // ------------------------------------------
+  // 1. DATA PERSISTENCE & INITIALIZATION
+  // ------------------------------------------
   
+  const [isLoaded, setIsLoaded] = useState(false);
+
+  // Core Application State
+  const [character, setCharacter] = useState<Character>(DEFAULTS.character);
+  const [statusBars, setStatusBars] = useState<StatusBar[]>(DEFAULTS.statusBars);
+  const [mainQuest, setMainQuest] = useState<Quest | null>(DEFAULTS.mainQuest);
+  const [sideQuests, setSideQuests] = useState<Quest[]>(DEFAULTS.sideQuests);
+  const [grindTasks, setGrindTasks] = useState<GrindTask[]>(DEFAULTS.grindTasks);
+  const [problems, setProblems] = useState<Problem[]>(DEFAULTS.problems);
+  const [skills, setSkills] = useState<Skill[]>(DEFAULTS.skills);
+  const [habits, setHabits] = useState<Habit[]>(DEFAULTS.habits);
+  const [habitHistory, setHabitHistory] = useState<DailyHistory[]>(DEFAULTS.habitHistory);
+  const [lastResetDate, setLastResetDate] = useState<string>(DEFAULTS.lastResetDate);
+  const [logs, setLogs] = useState<LogEntry[]>(DEFAULTS.logs);
+  const [language, setLanguage] = useState<Language>(DEFAULTS.language);
+  const [theme, setTheme] = useState<string>(DEFAULTS.theme);
+  const [viewMode, setViewMode] = useState<'dashboard' | 'insights'>('dashboard');
+
+  const lang = translations[language] || translations.en;
+
+  // Initial Data Fetch
+  useEffect(() => {
+    const loadAppData = async () => {
+      try {
+        const response = await fetch('/data');
+        const data = await response.json();
+        if (data) {
+          setCharacter(data.character || DEFAULTS.character);
+          setStatusBars(data.statusBars || DEFAULTS.statusBars);
+          setMainQuest(data.mainQuest);
+          setSideQuests(data.sideQuests || DEFAULTS.sideQuests);
+          setGrindTasks(data.grindTasks || DEFAULTS.grindTasks);
+          setProblems(data.problems || DEFAULTS.problems);
+          setSkills(data.skills || DEFAULTS.skills);
+          setHabits(data.habits || DEFAULTS.habits);
+          setHabitHistory(data.habitHistory || DEFAULTS.habitHistory);
+          setLastResetDate(data.lastResetDate || DEFAULTS.lastResetDate);
+          setLogs(data.logs || DEFAULTS.logs);
+          setLanguage(data.language || DEFAULTS.language);
+          setTheme(data.theme || DEFAULTS.theme);
+        }
+      } catch (error) {
+        console.error("Failed to load data from server:", error);
+      } finally {
+        setIsLoaded(true);
+      }
+    };
+    loadAppData();
+  }, []);
+
+  // Sync to Server on Change (Debounced)
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    const syncData = async () => {
+      try {
+        const appData = {
+          character,
+          statusBars,
+          mainQuest,
+          sideQuests,
+          grindTasks,
+          problems,
+          skills,
+          habits,
+          habitHistory,
+          lastResetDate,
+          logs,
+          language,
+          theme
+        };
+        await fetch('/data', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(appData)
+        });
+      } catch (error) {
+        console.error("Failed to sync data to server:", error);
+      }
+    };
+
+    const timeout = setTimeout(syncData, 1000);
+    return () => clearTimeout(timeout);
+  }, [character, statusBars, mainQuest, sideQuests, grindTasks, problems, skills, habits, habitHistory, lastResetDate, logs, language, theme, isLoaded]);
+
+  // Daily Reset Engine
+  useEffect(() => {
+    if (!isLoaded) return;
+    
+    const today = new Date().toISOString().split('T')[0];
+    if (lastResetDate !== today) {
+      // Archive yesterday
+      const yesterdayCompletion = habits.map(h => {
+        const completedCount = h.subtasks.filter(s => s.completed).length;
+        const rate = h.subtasks.length > 0 ? completedCount / h.subtasks.length : 0;
+        return { id: h.id, completionRate: rate };
+      });
+
+      const historyEntry: DailyHistory = {
+        date: lastResetDate,
+        habits: yesterdayCompletion
+      };
+
+      setHabitHistory(prev => [historyEntry, ...prev].slice(0, 365)); // Keep 1 year
+      
+      // Reset habits for new day
+      setHabits(prev => prev.map(h => ({
+        ...h,
+        subtasks: h.subtasks.map(s => ({ ...s, completed: false })),
+        isClaimed: false
+      })));
+
+      setLastResetDate(today);
+      addLog('habit', 'SYSTEM RESET: New Day Protocol Initiated');
+    }
+  }, [isLoaded, lastResetDate, habits, habitHistory]);
+
   // Theme configuration for Tailwind classes
   const themeColors: Record<string, { primary: string; text: string; bg: string; border: string; hover: string; shadow: string; glow: string }> = {
     indigo: { 
@@ -257,28 +312,30 @@ export default function App() {
       hover: 'emerald-500', 
       shadow: 'shadow-emerald-600/20',
       glow: 'rgba(16,185,129,0.2)'
+    },
+    obsidian: {
+      primary: 'slate-100',
+      text: 'slate-200',
+      bg: 'slate-950',
+      border: 'slate-800',
+      hover: 'slate-100',
+      shadow: 'shadow-black',
+      glow: 'rgba(255,255,255,0.1)'
     }
   };
 
   const t = themeColors[theme] || themeColors.indigo;
-  const tColor = theme === 'rose' ? 'rose' : theme === 'amber' ? 'amber' : theme === 'emerald' ? 'emerald' : 'indigo';
+  const tColor = theme === 'rose' ? 'rose' : theme === 'amber' ? 'amber' : theme === 'emerald' ? 'emerald' : theme === 'obsidian' ? 'slate' : 'indigo';
+  const isObsidian = theme === 'obsidian';
 
-  // --- PERSISTENCE ---
-  useEffect(() => {
-    localStorage.setItem('rpg_character', JSON.stringify(character));
-    localStorage.setItem('rpg_statusBars', JSON.stringify(statusBars));
-    localStorage.setItem('rpg_mainQuest', JSON.stringify(mainQuest));
-    localStorage.setItem('rpg_sideQuests', JSON.stringify(sideQuests));
-    localStorage.setItem('rpg_grindTasks', JSON.stringify(grindTasks));
-    localStorage.setItem('rpg_problems', JSON.stringify(problems));
-    localStorage.setItem('rpg_skills', JSON.stringify(skills));
-    localStorage.setItem('rpg_logs', JSON.stringify(logs));
-    localStorage.setItem('rpg_theme', theme);
-    localStorage.setItem('rpg_lang', language);
-  }, [character, statusBars, mainQuest, sideQuests, grindTasks, problems, skills, theme, language, logs]);
+  // ------------------------------------------
+  // 4. ACTION HANDLERS (GAME MECHANICS)
+  // ------------------------------------------
 
-  // --- ACTIONS ---
-
+  /** 
+   * Records completed actions in the daily activity log. 
+   * Limited to the last 100 entries for performance.
+   */
   const addLog = (type: CreationType, title: string) => {
     const newEntry: LogEntry = {
       id: uid(),
@@ -289,6 +346,11 @@ export default function App() {
     setLogs(prev => [newEntry, ...prev].slice(0, 100));
   };
 
+  /**
+   * Reward Processing Core
+   * Handles multi-reward yields (EXP + Stat boosts).
+   * Supports 'exp' as a reserved ID for character level progression.
+   */
   const handleClaimReward = (rewards: Reward[]) => {
     let totalOverflow = 0;
     
@@ -345,6 +407,10 @@ export default function App() {
     }
   };
 
+  // ------------------------------------------
+  // 5. UI STATE & MODALS
+  // ------------------------------------------
+
   const [activeConfirmation, setActiveConfirmation] = useState<'reset-stats' | 'load-example' | 'erase-all' | null>(null);
   const [editingStatId, setEditingStatId] = useState<string | null>(null);
 
@@ -360,6 +426,7 @@ export default function App() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isLogOpen, setIsLogOpen] = useState(false);
   const [confirmClearLogs, setConfirmClearLogs] = useState(false);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   // Reset confirmation when sidebar closes
   useEffect(() => {
@@ -371,7 +438,6 @@ export default function App() {
   const [screenShake, setScreenShake] = useState(false);
   const [rewardFloats, setRewardFloats] = useState<{ id: string; amount: number; statName: string; color: string }[]>([]);
   const [expandedQuestId, setExpandedQuestId] = useState<string | null>(null);
-  const [showWelcome, setShowWelcome] = useState(false);
 
   // Derived rank
   const currentRank = getSystemRank(character.level);
@@ -381,21 +447,25 @@ export default function App() {
     if (!hasSeenWelcome) {
       setShowWelcome(true);
       sessionStorage.setItem('rpg_welcome_shown', 'true');
-      setTimeout(() => setShowWelcome(false), 4500);
+      setTimeout(() => setShowWelcome(false), 1200);
     }
   }, []);
 
   // Trigger level up animation
+  // (Using character.level as source of truth)
   useEffect(() => {
-    const savedLevel = localStorage.getItem('rpg_last_level');
+    if (!isLoaded) return;
     const currentLevel = character.level;
     
-    if (savedLevel && parseInt(savedLevel) < currentLevel) {
+    // We can still use sessionStorage for transient UI state like "has seen level up recently"
+    // or just rely on the level change.
+    const lastLevelSeen = parseInt(sessionStorage.getItem('rpg_last_level_seen') || '0');
+    if (lastLevelSeen > 0 && lastLevelSeen < currentLevel) {
       setShowLevelUp(currentLevel);
-      setTimeout(() => setShowLevelUp(null), 3000);
+      setTimeout(() => setShowLevelUp(null), 800);
     }
-    localStorage.setItem('rpg_last_level', currentLevel.toString());
-  }, [character.level]);
+    sessionStorage.setItem('rpg_last_level_seen', currentLevel.toString());
+  }, [character.level, isLoaded]);
 
   const handleApplyPenalty = (penalty: number) => {
     setScreenShake(true);
@@ -409,25 +479,53 @@ export default function App() {
     });
   };
 
-  const handleLoadExample = () => {
-    localStorage.clear();
-    window.location.reload();
+  /**
+   * Clears all local storage and reloads to restore default example data.
+   */
+  const handleLoadExample = async () => {
+    try {
+      await fetch('/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(DEFAULTS)
+      });
+      window.location.reload();
+    } catch (e) {
+      console.error(e);
+    }
   };
 
-  const handleEraseAll = () => {
-    localStorage.setItem('rpg_character', JSON.stringify({ name: '', level: 1, exp: 0 }));
-    localStorage.setItem('rpg_statusBars', JSON.stringify([]));
-    localStorage.setItem('rpg_mainQuest', 'null');
-    localStorage.setItem('rpg_sideQuests', JSON.stringify([]));
-    localStorage.setItem('rpg_grindTasks', JSON.stringify([]));
-    localStorage.setItem('rpg_problems', JSON.stringify([]));
-    localStorage.setItem('rpg_skills', JSON.stringify([]));
-    localStorage.setItem('rpg_logs', JSON.stringify([]));
-    localStorage.setItem('rpg_theme', 'indigo');
-    localStorage.setItem('rpg_lang', language);
-    window.location.reload();
+  /**
+   * Resets the application to an absolute zero state.
+   * Manually sets all storage keys to their empty defaults.
+   */
+  const handleEraseAll = async () => {
+    const emptyState = {
+      ...DEFAULTS,
+      character: { name: '', level: 1, exp: 0 },
+      statusBars: [],
+      mainQuest: null,
+      sideQuests: [],
+      grindTasks: [],
+      problems: [],
+      skills: [],
+      logs: []
+    };
+    try {
+      await fetch('/data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emptyState)
+      });
+      window.location.reload();
+    } catch (e) {
+      console.error(e);
+    }
   };
 
+  /**
+   * Generates a JSON file containing the entire system state for backup.
+   */
   const handleExport = () => {
     const data = {
       character,
@@ -449,6 +547,9 @@ export default function App() {
     URL.revokeObjectURL(url);
   };
 
+  /**
+   * Reads a system state JSON file and hydrates the application backup.
+   */
   const handleImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -473,8 +574,44 @@ export default function App() {
     e.target.value = ''; // Reset input
   };
 
+  // ------------------------------------------
+  // 6. MAIN RENDER ENGINE
+  // ------------------------------------------
+
+  // Memoize history for ribbon
+  const ribbonData = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const todayCompletedCount = habits.flatMap(h => h.subtasks).filter(s => s.completed).length;
+    const todayTotalCount = habits.flatMap(h => h.subtasks).length;
+    const todayRate = todayTotalCount > 0 ? todayCompletedCount / todayTotalCount : 0;
+
+    return Array.from({ length: 7 }).map((_, i) => {
+      const date = new Date();
+      date.setDate(date.getDate() - (6 - i));
+      const dateStr = date.toISOString().split('T')[0];
+      const isToday = i === 6;
+      const dayName = date.toLocaleDateString(language, { weekday: 'short' });
+      
+      let rate = 0;
+      if (isToday) {
+        rate = todayRate;
+      } else {
+        const entry = habitHistory.find(h => h.date === dateStr);
+        if (entry) {
+          const totalRate = entry.habits.reduce((acc, h) => acc + h.completionRate, 0);
+          rate = entry.habits.length > 0 ? totalRate / entry.habits.length : 0;
+        }
+      }
+
+      return { dayName, rate, isToday };
+    });
+  }, [habits, habitHistory, language]);
+
+  const habitCompletionRate = ribbonData[6]?.rate ? Math.round(ribbonData[6].rate * 100) : 0;
+
   return (
-    <div className={`min-h-screen bg-[#020617] text-[#f8fafc] font-sans p-4 md:p-8 selection:bg-${tColor}-500 selection:text-white overflow-x-hidden`}>
+    <div className={`min-h-screen bg-[#020617] text-[#f8fafc] font-sans selection:bg-${tColor}-500 selection:text-white overflow-x-hidden pb-12`}>
+      {/* APP WRAPPER: Primary container for the system interface */}
       <AnimatePresence>
         {showWelcome && (
           <motion.div 
@@ -489,13 +626,13 @@ export default function App() {
             <motion.div
               initial={{ y: 20, opacity: 0 }}
               animate={{ y: 0, opacity: 1 }}
-              transition={{ delay: 0.5, duration: 1 }}
+              transition={{ delay: 0.2, duration: 0.6 }}
               className="flex flex-col items-center gap-4 relative z-10"
             >
               <motion.div 
                 initial={{ opacity: 0 }}
                 animate={{ opacity: [0, 1, 0.5, 1] }}
-                transition={{ delay: 1, duration: 0.5 }}
+                transition={{ delay: 0.4, duration: 0.3 }}
                 className={`text-[10px] uppercase font-black tracking-[0.8em] text-${tColor}-400 mb-2`}
               >
                 {lang.systemInitializing}
@@ -510,7 +647,7 @@ export default function App() {
                 <motion.div 
                   initial={{ x: "-100%" }}
                   animate={{ x: "0%" }}
-                  transition={{ delay: 1.5, duration: 2, ease: "easeInOut" }}
+                  transition={{ delay: 0.6, duration: 1, ease: "easeInOut" }}
                   className={`absolute inset-0 bg-gradient-to-r from-transparent via-${tColor}-500 to-transparent`}
                 />
               </div>
@@ -518,7 +655,7 @@ export default function App() {
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
-                transition={{ delay: 3.5, duration: 0.5 }}
+                transition={{ delay: 1.4, duration: 0.4 }}
                 className="text-slate-500 text-[9px] font-black uppercase tracking-[0.4em] mt-4"
               >
                 {lang.neuralMapping}
@@ -547,19 +684,27 @@ export default function App() {
         className="max-w-7xl mx-auto relative z-10 flex flex-col gap-8"
       >
         {/* HEADER SECTION */}
-        <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 px-4">
+        <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 px-4 md:px-8">
           <div className="flex items-center gap-4">
-            <div className={`w-12 h-12 bg-${tColor}-600 rounded-xl flex items-center justify-center font-black text-2xl shadow-lg shadow-${tColor}-600/20`}>
+            <div className={`w-12 h-12 bg-${tColor}-600 rounded-xl flex items-center justify-center font-black text-2xl shadow-lg shadow-${tColor}-600/20 shrink-0`}>
               {character.name.charAt(0)}
             </div>
             <div>
-              <h1 className="text-2xl font-black tracking-tighter uppercase leading-none">
+              <h1 className="text-2xl font-black tracking-tighter uppercase leading-none truncate max-w-[150px] sm:max-w-xs">
                 {character.name}
               </h1>
-              <div className="flex items-center gap-2 sm:gap-3 mt-1.5 sm:mt-1">
-                <span className={`bg-${tColor}-500/10 text-${tColor}-400 px-2 sm:px-3 py-1 sm:py-0.5 rounded-md sm:rounded text-[9px] sm:text-[10px] font-bold border border-${tColor}-500/20 uppercase tracking-widest leading-none flex items-center justify-center min-w-[50px] sm:min-w-0`}>{lang.lvl} {character.level}</span>
-                <span className="bg-emerald-500/10 text-emerald-400 px-2 sm:px-2.5 py-1 sm:py-0.5 rounded-md sm:rounded text-[8px] sm:text-[9px] font-black border border-emerald-500/20 uppercase tracking-tighter flex items-center justify-center min-w-[50px] sm:min-w-0">{currentRank}</span>
-                <div className="w-24 sm:w-32 h-1.5 bg-slate-800 rounded-full overflow-hidden ml-1 sm:ml-2 shrink-0">
+              <div className="flex items-center gap-2 sm:gap-3 mt-1.5 flex-wrap">
+                <span className={`bg-${tColor}-500/10 text-${tColor}-400 px-2 sm:px-3 py-1 rounded text-[9px] sm:text-[10px] font-bold border border-${tColor}-500/20 uppercase tracking-widest flex items-center justify-center min-w-[50px]`}>{lang.lvl} {character.level}</span>
+                {habits.length > 0 && (
+                  <div className="flex items-center gap-1.5 bg-slate-900/50 px-2 py-0.5 rounded border border-slate-700/50">
+                    <Flame size={10} className={`text-${tColor}-500`} />
+                    <span className="text-[9px] font-black uppercase text-slate-400">
+                      {habitCompletionRate}%
+                    </span>
+                  </div>
+                )}
+                <span className="bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded text-[8px] sm:text-[9px] font-black border border-emerald-500/20 uppercase tracking-tighter flex items-center justify-center min-w-[50px]">{currentRank}</span>
+                <div className="hidden sm:block w-32 h-1.5 bg-slate-800 rounded-full overflow-hidden ml-2 shrink-0">
                   <motion.div 
                     initial={{ width: 0 }}
                     animate={{ width: `${(character.exp / 1000) * 100}%` }}
@@ -571,43 +716,291 @@ export default function App() {
             </div>
           </div>
           
-          <div className="flex gap-4 items-center w-full md:w-auto">
+          <div className="flex flex-wrap lg:flex-nowrap gap-3 items-center w-full lg:w-auto">
+             {/* Progress bar for mobile only */}
+             <div className="sm:hidden w-full h-1 bg-slate-800 rounded-full overflow-hidden mb-2">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: `${(character.exp / 1000) * 100}%` }}
+                  className={`h-full bg-${tColor}-500 shadow-[0_0_10px_rgba(var(--color-indigo-500),0.3)]`} 
+                />
+             </div>
+            <div className="flex bg-slate-900/50 p-1 rounded-full border border-slate-700/50">
+              <button 
+                onClick={() => setViewMode('dashboard')}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'dashboard' ? `bg-${tColor}-500 text-white shadow-lg shadow-${tColor}-500/20` : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                <LayoutGrid size={14} />
+                <span className="hidden xs:inline">{lang.dailyProtocol}</span>
+              </button>
+              <button 
+                onClick={() => setViewMode('insights')}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${viewMode === 'insights' ? `bg-${tColor}-500 text-white shadow-lg shadow-${tColor}-500/20` : 'text-slate-500 hover:text-slate-300'}`}
+              >
+                <BarChart3 size={14} />
+                <span className="hidden xs:inline">{lang.performanceInsights}</span>
+              </button>
+            </div>
             <button 
               onClick={() => setIsLogOpen(true)}
-              className={`p-2.5 bg-${tColor}-600/20 hover:bg-${tColor}-600/30 border border-${tColor}-500/30 rounded-full text-${tColor}-400 transition-all flex items-center gap-2 px-4 group`}
+              aria-label={lang.dailyLog}
+              className={`p-2.5 bg-${tColor}-600/20 hover:bg-${tColor}-600/30 border border-${tColor}-500/30 rounded-full text-${tColor}-400 transition-all flex items-center gap-2 px-4 group focus-visible:ring-2 focus-visible:ring-${tColor}-500 outline-none`}
             >
               <History size={18} className="group-hover:scale-110 transition-transform" />
               <span className="text-[10px] uppercase font-black tracking-widest hidden sm:inline">{lang.dailyLog}</span>
             </button>
             <button 
               onClick={() => setIsSidebarOpen(true)}
-              className={`p-2.5 bg-${tColor}-600/20 hover:bg-${tColor}-600/30 border border-${tColor}-500/30 rounded-full text-${tColor}-400 transition-all flex items-center gap-2 px-4 group`}
+              aria-label={lang.skills}
+              className={`p-2.5 bg-${tColor}-600/20 hover:bg-${tColor}-600/30 border border-${tColor}-500/30 rounded-full text-${tColor}-400 transition-all flex items-center gap-2 px-4 group focus-visible:ring-2 focus-visible:ring-${tColor}-500 outline-none`}
             >
               <Book size={18} className="group-hover:scale-110 transition-transform" />
               <span className="text-[10px] uppercase font-black tracking-widest hidden sm:inline">{lang.skills}</span>
             </button>
             <div className="hidden sm:flex bg-slate-800/50 px-4 py-2 rounded-full border border-slate-700/50 gap-4 text-xs font-semibold">
-              <span className="text-slate-400">{lang.exp}: {Math.floor(character.exp)} / 1,000</span>
+              <span className="text-slate-300">{lang.exp}: {Math.floor(character.exp)} / 1,000</span>
               <span className={`text-${tColor}-400 uppercase tracking-tighter`}>{lang.rank}: {currentRank}</span>
             </div>
             <button 
               onClick={() => setIsSettingsOpen(true)}
-              className="p-2.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/50 rounded-full text-slate-400 transition-all ml-auto md:ml-0"
+              aria-label={lang.settings}
+              className="p-2.5 bg-slate-800/80 hover:bg-slate-700 border border-slate-700/50 rounded-full text-slate-300 transition-all ml-auto md:ml-0 focus-visible:ring-2 focus-visible:ring-white outline-none"
             >
               <Settings size={20} />
             </button>
           </div>
         </header>
 
-        <main className="grid grid-cols-1 md:grid-cols-12 gap-5 auto-rows-auto">
+        {/* HISTORY RIBBON */}
+        <section className="px-4 overflow-x-auto no-scrollbar pb-2">
+          <div className="flex gap-3 min-w-max justify-around sm:justify-start">
+            {ribbonData.map((day, i) => (
+              <div key={i} className="flex flex-col items-center gap-2">
+                <span className={`text-[9px] font-black uppercase tracking-tighter ${day.isToday ? `text-${tColor}-400` : 'text-slate-600'}`}>{day.dayName}</span>
+                <div 
+                  className={`w-10 h-10 rounded-xl border flex items-center justify-center relative overflow-hidden transition-all ${day.isToday ? `border-${tColor}-500/50 bg-${tColor}-500/10` : 'border-slate-800 bg-slate-900/40'}`}
+                >
+                  <div 
+                    className={`absolute bottom-0 left-0 right-0 bg-${tColor}-500/20 transition-all duration-700`} 
+                    style={{ height: `${day.rate * 100}%` }}
+                  />
+                  <span className={`text-[10px] font-mono font-bold relative z-10 ${day.rate === 1 ? `text-${tColor}-300` : 'text-slate-400'}`}>
+                    {Math.round(day.rate * 100)}%
+                  </span>
+                  {day.rate === 1 && (
+                    <motion.div 
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className={`absolute -top-1 -right-1 w-3 h-3 bg-${tColor}-500 rounded-full border-2 border-[#020617]`}
+                    />
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* MAIN QUEST - PERSISTENT AT TOP */}
+        <section className="px-5 mt-4" aria-labelledby="main-quest-heading">
+          {mainQuest ? (
+            <div className={`bento-card border-${tColor}-500/30 bg-${tColor}-500/5 relative overflow-hidden group`}>
+              <div className={`absolute top-0 right-0 w-64 h-full bg-${tColor}-500/5 blur-3xl pointer-events-none`}></div>
+              <div className="flex flex-col md:flex-row md:items-center gap-6 relative z-10">
+                <div className="shrink-0 scale-75 md:scale-100">
+                  <h3 id="main-quest-heading" className={`px-4 py-1.5 bg-${tColor}-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg shadow-${tColor}-500/20`}>
+                    {lang.mainQuest}
+                  </h3>
+                </div>
+                <div className="flex-1">
+                  <h4 className={`text-xl font-bold tracking-tight text-white mb-1 group-hover:text-${tColor}-300 transition-colors`}>{mainQuest.title}</h4>
+                  <p className="text-slate-300 text-sm italic opacity-70">{lang.objective}: {mainQuest.description || 'Ascend beyond the final limit.'}</p>
+                </div>
+                <div className="flex items-center gap-6 text-slate-400 text-sm">
+                  <button 
+                    onClick={() => {
+                      if (mainQuest) addLog('main-quest', mainQuest.title);
+                      setMainQuest(null);
+                    }}
+                    aria-label={`${lang.delete} ${mainQuest.title}`}
+                    className="p-2 hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition-all rounded-lg focus-visible:ring-2 focus-visible:ring-red-500 outline-none"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <button 
+              onClick={() => setCreationModal({ isOpen: true, type: 'main-quest' })}
+              aria-label={lang.initializePrimeDirective}
+              className={`w-full bento-card border-dashed border-slate-700 bg-transparent hover:bg-${tColor}-500/5 hover:border-${tColor}-500/30 transition-all flex flex-row items-center justify-center gap-3 text-slate-400 h-[80px] focus-visible:ring-2 focus-visible:ring-${tColor}-500 outline-none`}
+            >
+              <Plus size={20} />
+              <h3 id="main-quest-heading" className="uppercase text-xs font-bold tracking-[0.2em]">{lang.initializePrimeDirective}</h3>
+            </button>
+          )}
+        </section>
+
+        {viewMode === 'dashboard' ? (
+          <main className="grid grid-cols-1 md:grid-cols-12 gap-5 auto-rows-auto">
+          {/* HABIT TRACKER - Bento Card (Full Width) */}
+          <section id="habit-tracker" className="md:col-span-12" aria-labelledby="habits-heading">
+            <div className="bento-card">
+              <div className="flex justify-between items-center mb-8">
+                <div>
+                  <h2 id="habits-heading" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{lang.habitTracker}</h2>
+                  <p className="text-[9px] text-slate-500 uppercase mt-1 font-bold">Daily Protocol</p>
+                </div>
+                <button 
+                  onClick={() => setCreationModal({ isOpen: true, type: 'habit' })}
+                  className={`flex items-center gap-2 bg-${tColor}-600 hover:bg-${tColor}-500 text-white px-4 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all shadow-lg shadow-${tColor}-600/20`}
+                >
+                  <Plus size={14} /> {lang.newHabit}
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {habits.map(habit => {
+                  const completedSubtasks = habit.subtasks.filter(s => s.completed).length;
+                  const totalSubtasks = habit.subtasks.length;
+                  const progress = totalSubtasks > 0 ? (completedSubtasks / totalSubtasks) * 100 : 0;
+                  const isFinished = progress === 100;
+                  const isClaimed = habit.isClaimed;
+
+                  return (
+                    <motion.div 
+                      key={habit.id}
+                      id={`habit-card-${habit.id}`}
+                      layout
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className={`p-5 rounded-3xl bg-slate-900/50 border border-slate-800 transition-all group relative ${isFinished && !isClaimed ? `ring-2 ring-${tColor}-500/50 shadow-[0_0_30px_rgba(79,70,229,0.15)]` : ''} ${isClaimed ? 'opacity-80 grayscale-[0.5]' : ''}`}
+                    >
+                      {(isFinished && !isClaimed) && (
+                        <div className={`absolute inset-0 bg-${tColor}-500/5 rounded-3xl pointer-events-none animate-[glow_3s_ease-in-out_infinite]`}></div>
+                      )}
+                      
+                      <div className="flex justify-between items-start mb-6 relative z-10">
+                  <div className={`w-10 h-10 rounded-xl bg-slate-800 flex items-center justify-center ${isClaimed ? 'text-emerald-400' : `text-${tColor}-400`} group-hover:scale-110 transition-transform`}>
+                    {isClaimed ? <Award size={20} /> : (
+                      habit.icon === 'Sun' ? <Sun size={20} /> : 
+                      habit.icon === 'Target' ? <Target size={20} /> :
+                      habit.icon === 'Heart' ? <Heart size={20} /> :
+                      habit.icon === 'Zap' ? <Zap size={20} /> :
+                      habit.icon === 'Book' ? <Book size={20} /> :
+                      habit.icon === 'Award' ? <Award size={20} /> :
+                      <Target size={20} />
+                    )}
+                  </div>
+                        <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                          {!isClaimed && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (isFinished && !isClaimed) {
+                                  addLog('habit', habit.title);
+                                  handleClaimReward(habit.rewards);
+                                  setHabits(habits.map(h => h.id === habit.id ? { ...h, isClaimed: true } : h));
+                                }
+                              }}
+                              disabled={!isFinished}
+                              className={`p-2 rounded-lg ${isFinished ? `bg-emerald-500 text-black hover:bg-emerald-400` : 'bg-slate-800 text-slate-500'} transition-all`}
+                              title={isFinished ? "Claim Reward" : "Complete all subtasks first"}
+                            >
+                              <Award size={14} />
+                            </button>
+                          )}
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setHabits(habits.filter(h => h.id !== habit.id));
+                            }}
+                            className="p-2 bg-slate-800 text-slate-400 hover:text-red-400 rounded-lg transition-all"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="relative z-10">
+                        <div className="flex items-center gap-2 mb-1">
+                          <h3 className="font-bold text-white tracking-tight uppercase text-sm">{habit.title}</h3>
+                          {isClaimed && <span className="text-[8px] font-black bg-emerald-500/20 text-emerald-400 px-1.5 py-0.5 rounded uppercase tracking-tighter">Claimed</span>}
+                        </div>
+                        <div className="flex justify-between items-end mb-4">
+                          <span className="text-[10px] font-black uppercase text-slate-500">{completedSubtasks}/{totalSubtasks} Units</span>
+                          <span className={`text-[10px] font-mono font-black ${isFinished ? (isClaimed ? 'text-emerald-400' : `text-${tColor}-400`) : 'text-slate-400'}`}>{Math.round(progress)}%</span>
+                        </div>
+
+                        <div className="h-1 bg-slate-800 rounded-full overflow-hidden mb-6">
+                           <motion.div 
+                              initial={{ width: 0 }}
+                              animate={{ width: `${progress}%` }}
+                              className={`h-full ${isClaimed ? 'bg-emerald-500' : `bg-${tColor}-500`}`}
+                           />
+                        </div>
+
+                        <div className="space-y-2">
+                          {habit.subtasks.map(st => (
+                            <button 
+                              key={st.id}
+                              disabled={isClaimed}
+                              onClick={() => {
+                                let justFinished = false;
+                                const newHabits = habits.map(h => {
+                                  if (h.id === habit.id) {
+                                    const updatedSubtasks = h.subtasks.map(s => s.id === st.id ? { ...s, completed: !s.completed } : s);
+                                    const total = updatedSubtasks.length;
+                                    const done = updatedSubtasks.filter(s => s.completed).length;
+                                    
+                                    // Trigger auto-reward if completion goes from <100% to 100% and not claimed
+                                    const wasFinished = h.subtasks.length > 0 && h.subtasks.every(s => s.completed);
+                                    if (total > 0 && done === total && !wasFinished && !h.isClaimed) {
+                                      justFinished = true;
+                                    }
+                                    
+                                    return { ...h, subtasks: updatedSubtasks, isClaimed: justFinished ? true : h.isClaimed };
+                                  }
+                                  return h;
+                                });
+                                setHabits(newHabits);
+                                if (justFinished) {
+                                  addLog('habit', habit.title);
+                                  handleClaimReward(habit.rewards);
+                                }
+                              }}
+                              className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${st.completed ? (isClaimed ? 'bg-emerald-500/5 border-emerald-500/20 text-emerald-400/70' : `bg-${tColor}-500/10 border-${tColor}-500/30 text-${tColor}-400`) : 'bg-slate-950/50 border-slate-800/50 text-slate-500 hover:border-slate-700'} ${isClaimed ? 'cursor-default' : ''}`}
+                            >
+                               <div className={`w-4 h-4 rounded border flex items-center justify-center transition-all ${st.completed ? (isClaimed ? 'bg-emerald-500 border-emerald-500' : `bg-${tColor}-500 border-${tColor}-500`) : 'border-slate-700'}`}>
+                                 {st.completed && <Check size={10} className="text-black" />}
+                               </div>
+                               <span className={`text-xs font-bold uppercase tracking-tight ${st.completed && isClaimed ? 'line-through opacity-50' : ''}`}>{st.text}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+                {habits.length === 0 && (
+                   <div className="col-span-full py-12 flex flex-col items-center justify-center gap-3 opacity-20 grayscale border-2 border-dashed border-slate-800 rounded-3xl">
+                      <LayoutGrid size={32} />
+                      <span className="text-[10px] font-bold uppercase tracking-widest">{lang.noHabits}</span>
+                   </div>
+                )}
+              </div>
+            </div>
+          </section>
+
           {/* STATUS ATTRIBUTES - Bento Card */}
-          <div className="md:col-span-12 flex flex-col">
-            <section className="bento-card h-full">
+          <section className="md:col-span-12 flex flex-col" aria-labelledby="status-heading">
+            <div className="bento-card h-full">
               <div className="flex justify-between items-start mb-6">
-                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{lang.statusAttributes}</h2>
+                <h2 id="status-heading" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{lang.statusAttributes}</h2>
                 <button 
                   onClick={() => setIsSettingsOpen(true)}
-                  className={`text-${tColor}-400 text-[10px] uppercase font-bold hover:underline`}
+                  aria-label={lang.newBar}
+                  className={`text-${tColor}-400 text-[10px] uppercase font-bold hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-${tColor}-400`}
                 >
                   + {lang.newBar}
                 </button>
@@ -637,56 +1030,18 @@ export default function App() {
                   <p className="col-span-2 text-xs text-slate-500 italic opacity-50 py-4">No attributes initialized.</p>
                 )}
               </div>
-            </section>
-          </div>
-
-          {/* MAIN QUEST - Bento Card Full Width */}
-          <div className="md:col-span-12">
-            {mainQuest ? (
-              <section className={`bento-card border-${tColor}-500/30 bg-${tColor}-500/5 relative overflow-hidden group`}>
-                <div className={`absolute top-0 right-0 w-64 h-full bg-${tColor}-500/5 blur-3xl pointer-events-none`}></div>
-                <div className="flex flex-col md:flex-row md:items-center gap-6 relative z-10">
-                  <div className="shrink-0 scale-75 md:scale-100">
-                    <div className={`px-4 py-1.5 bg-${tColor}-500 text-white rounded-lg text-[10px] font-black uppercase tracking-widest shadow-lg shadow-${tColor}-500/20`}>
-                      {lang.mainQuest}
-                    </div>
-                  </div>
-                  <div className="flex-1">
-                    <h4 className={`text-xl font-bold tracking-tight text-white mb-1 group-hover:text-${tColor}-300 transition-colors`}>{mainQuest.title}</h4>
-                    <p className="text-slate-400 text-sm italic opacity-70">{lang.objective}: {mainQuest.description || 'Ascend beyond the final limit.'}</p>
-                  </div>
-                  <div className="flex items-center gap-6 text-slate-500 text-sm">
-                    <button 
-                      onClick={() => {
-                        if (mainQuest) addLog('main-quest', mainQuest.title);
-                        setMainQuest(null);
-                      }}
-                      className="p-2 hover:bg-red-500/10 text-slate-500 hover:text-red-400 transition-all rounded-lg"
-                    >
-                      <Trash2 size={16} />
-                    </button>
-                  </div>
-                </div>
-              </section>
-            ) : (
-              <button 
-                onClick={() => setCreationModal({ isOpen: true, type: 'main-quest' })}
-                className={`w-full bento-card border-dashed border-slate-700 bg-transparent hover:bg-${tColor}-500/5 hover:border-${tColor}-500/30 transition-all flex flex-row items-center justify-center gap-3 text-slate-500 h-[80px]`}
-              >
-                <Plus size={20} />
-                <span className="uppercase text-xs font-bold tracking-[0.2em]">{lang.initializePrimeDirective}</span>
-              </button>
-            )}
-          </div>
+            </div>
+          </section>
 
           {/* SIDE QUESTS - Bento Card */}
-          <div className="md:col-span-4 row-span-3">
-            <section className="bento-card h-full min-h-[400px]">
+          <section className="md:col-span-4 row-span-3" aria-labelledby="side-quests-heading">
+            <div className="bento-card h-full min-h-[400px]">
               <div className="flex justify-between items-center mb-8">
-                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">{lang.sideQuests}</h2>
+                <h2 id="side-quests-heading" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{lang.sideQuests}</h2>
                 <button 
                   onClick={() => setCreationModal({ isOpen: true, type: 'side-quest' })}
-                  className={`w-8 h-8 rounded-full bg-slate-800 hover:bg-${tColor}-600 transition-all flex items-center justify-center text-white text-lg`}
+                  aria-label={`${lang.createEntry} side quest`}
+                  className={`w-8 h-8 rounded-full bg-slate-800 hover:bg-${tColor}-600 transition-all flex items-center justify-center text-white text-lg focus-visible:ring-2 focus-visible:ring-${tColor}-400 outline-none`}
                 >
                   <Plus size={18} />
                 </button>
@@ -701,16 +1056,17 @@ export default function App() {
                       animate={{ opacity: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.95 }}
                       onClick={() => setExpandedQuestId(expandedQuestId === quest.id ? null : quest.id)}
-                      className={`p-4 rounded-[20px] bg-slate-800/40 border border-slate-700/50 flex flex-col gap-4 group/quest transition-all cursor-pointer ${expandedQuestId === quest.id ? 'ring-1 ring-emerald-500/30 bg-slate-800' : ''}`}
+                      className={`p-4 rounded-[20px] bg-slate-800/40 border border-slate-700/50 flex flex-col gap-4 group/quest transition-all cursor-pointer focus-within:ring-1 focus-within:ring-${tColor}-500 ${expandedQuestId === quest.id ? 'ring-1 ring-emerald-500/30 bg-slate-800' : ''}`}
                     >
                       <div className="flex justify-between items-start">
-                        <h5 className={`font-bold text-sm tracking-tight text-white transition-all ${expandedQuestId === quest.id ? '' : 'line-clamp-2'}`}>{quest.title}</h5>
+                        <h3 className={`font-bold text-sm tracking-tight text-white transition-all ${expandedQuestId === quest.id ? '' : 'line-clamp-2'}`}>{quest.title}</h3>
                         <button 
                           onClick={(e) => {
                             e.stopPropagation();
                             setSideQuests(sideQuests.filter(q => q.id !== quest.id));
                           }}
-                          className="text-slate-500 hover:text-red-400 transition-colors text-xl font-light leading-none"
+                          aria-label={`${lang.delete} ${quest.title}`}
+                          className="text-slate-400 hover:text-red-400 transition-colors text-xl font-light leading-none focus-visible:text-red-400 outline-none"
                         >
                           ×
                         </button>
@@ -762,17 +1118,18 @@ export default function App() {
                   </div>
                 )}
               </div>
-            </section>
-          </div>
+            </div>
+          </section>
 
           {/* INFINITE GRIND - Bento Card */}
-          <div className="md:col-span-4 row-span-3">
-            <section className="bento-card h-full min-h-[400px]">
+          <section className="md:col-span-4 row-span-3" aria-labelledby="grind-heading">
+            <div className="bento-card h-full min-h-[400px]">
               <div className="flex justify-between items-center mb-8">
-                <h2 className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">Infinite Grind</h2>
+                <h2 id="grind-heading" className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Infinite Grind</h2>
                 <button 
                   onClick={() => setCreationModal({ isOpen: true, type: 'grind-task' })}
-                  className={`w-8 h-8 rounded-full bg-slate-800 hover:bg-${tColor}-600 transition-all flex items-center justify-center text-white text-lg`}
+                  aria-label={`${lang.createEntry} grind task`}
+                  className={`w-8 h-8 rounded-full bg-slate-800 hover:bg-${tColor}-600 transition-all flex items-center justify-center text-white text-lg focus-visible:ring-2 focus-visible:ring-${tColor}-400 outline-none`}
                 >
                    <Plus size={18} />
                 </button>
@@ -782,13 +1139,14 @@ export default function App() {
                   <motion.div 
                     layout
                     key={task.id}
-                    className="p-4 rounded-[20px] border border-dashed border-slate-700/50 flex flex-col gap-4 group/grind"
+                    className="p-4 rounded-[20px] border border-dashed border-slate-700/50 flex flex-col gap-4 group/grind focus-within:ring-1 focus-within:ring-${tColor}-500"
                   >
                     <div className="flex justify-between items-start">
-                      <h5 className="font-bold text-sm tracking-tight text-white">{task.title}</h5>
+                      <h3 className="font-bold text-sm tracking-tight text-white">{task.title}</h3>
                       <button 
                         onClick={() => setGrindTasks(grindTasks.filter(t => t.id !== task.id))}
-                        className="text-slate-500 hover:text-red-400 transition-colors text-xl font-light leading-none"
+                        aria-label={`${lang.delete} ${task.title}`}
+                        className="text-slate-400 hover:text-red-400 transition-colors text-xl font-light leading-none focus-visible:text-red-400 outline-none"
                       >
                          ×
                       </button>
@@ -822,17 +1180,18 @@ export default function App() {
                    </div>
                 )}
               </div>
-            </section>
-          </div>
+            </div>
+          </section>
 
           {/* ACTIVE PROBLEMS - Bento Card */}
-          <div className="md:col-span-4 row-span-3">
-            <section className="bento-card h-full min-h-[400px]">
+          <section className="md:col-span-4 row-span-3" aria-labelledby="threats-heading">
+            <div className="bento-card h-full min-h-[400px]">
               <div className="flex justify-between items-center mb-8">
-                <h2 className="text-[10px] font-bold text-rose-500/50 uppercase tracking-widest">{lang.activeThreats}</h2>
+                <h2 id="threats-heading" className="text-[10px] font-bold text-rose-500/50 uppercase tracking-widest">{lang.activeThreats}</h2>
                 <button 
                    onClick={() => setCreationModal({ isOpen: true, type: 'problem' })}
-                   className="w-8 h-8 rounded-full bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center text-lg shadow-lg shadow-rose-500/5"
+                   aria-label={`${lang.createEntry} threat`}
+                   className="w-8 h-8 rounded-full bg-rose-500/10 text-rose-400 hover:bg-rose-500 hover:text-white transition-all flex items-center justify-center text-lg shadow-lg shadow-rose-500/5 focus-visible:ring-2 focus-visible:ring-rose-500 outline-none"
                 >
                   <Plus size={18} />
                 </button>
@@ -845,10 +1204,10 @@ export default function App() {
                     className="flex items-center justify-between p-4 bg-rose-500/5 border border-rose-500/10 rounded-[20px] group/prob"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></div>
+                      <div className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" aria-hidden="true"></div>
                       <div className="flex flex-col">
-                        <span className="text-sm font-medium text-slate-300">{prob.title}</span>
-                        {prob.xpPenalty > 0 && <span className="text-[9px] text-rose-500/60 font-bold uppercase">Penalty: -{prob.xpPenalty} {lang.exp}</span>}
+                        <h3 className="text-sm font-medium text-slate-300">{prob.title}</h3>
+                        {prob.xpPenalty > 0 && <span className="text-[9px] text-rose-500/70 font-bold uppercase">Penalty: -{prob.xpPenalty} {lang.exp}</span>}
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -857,13 +1216,14 @@ export default function App() {
                           addLog('problem', prob.title);
                           handleApplyPenalty(prob.xpPenalty);
                         }}
-                        className="text-[11px] bg-rose-500 text-black hover:bg-rose-400 px-3 py-1.5 rounded-lg border border-rose-400 font-black uppercase transition-all shadow-[0_0_15px_rgba(244,63,94,0.3)] hover:scale-105 active:scale-95"
+                        className="text-[11px] bg-rose-500 text-black hover:bg-rose-400 px-3 py-1.5 rounded-lg border border-rose-400 font-black uppercase transition-all shadow-[0_0_15px_rgba(244,63,94,0.3)] hover:scale-105 active:scale-95 focus-visible:ring-2 focus-visible:ring-rose-400 outline-none"
                       >
                         {lang.accept}
                       </button>
                       <button 
                         onClick={() => setProblems(problems.filter(p => p.id !== prob.id))}
-                        className="p-1 text-slate-500 hover:text-white transition-all"
+                        aria-label={`${lang.delete} ${prob.title}`}
+                        className="p-1 text-slate-400 hover:text-white transition-all focus-visible:text-white outline-none"
                       >
                         <X size={14} />
                       </button>
@@ -871,20 +1231,30 @@ export default function App() {
                   </motion.div>
                 ))}
                 {problems.length === 0 && (
-                  <div className="py-12 flex flex-col items-center justify-center gap-3 opacity-20 border-2 border-dashed border-slate-800 rounded-[20px]">
+                  <div className="py-12 flex flex-col items-center justify-center gap-3 opacity-20 border-2 border-dashed border-slate-800 rounded-[20px]" aria-hidden="true">
                      <AlertCircle size={32} />
                      <span className="text-[10px] font-bold uppercase tracking-widest">{lang.noActiveThreats}</span>
                   </div>
                 )}
               </div>
-              <div className="mt-auto pt-6 border-t border-slate-800 text-[10px] text-slate-500 text-center italic leading-relaxed opacity-60">
+              <div className="mt-auto pt-6 border-t border-slate-800 text-[10px] text-slate-400 text-center italic leading-relaxed opacity-60">
                  {lang.wipeWarning}
               </div>
-            </section>
-          </div>
-        </main>
+            </div>
+          </section>
 
-        <footer className="py-12 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-slate-800 select-none">
+        </main>
+      ) : (
+        <PerformanceInsights 
+          habits={habits} 
+          habitHistory={habitHistory} 
+          tColor={tColor} 
+          lang={lang} 
+          language={language}
+        />
+      )}
+
+      <footer className="py-12 flex flex-col sm:flex-row justify-between items-center gap-4 border-t border-slate-800 select-none">
           <div className="flex items-center gap-3 grayscale opacity-30">
             <Zap size={16} />
             <span className="text-[10px] tracking-[0.4em] font-black uppercase">Core Protocol v4.0</span>
@@ -910,7 +1280,11 @@ export default function App() {
             >
               <div className={`flex justify-between items-center mb-8 pb-4 border-b border-${tColor}-500/20`}>
                 <h2 className="text-2xl font-black text-white uppercase tracking-tighter italic">{lang.systemConfig}</h2>
-                <button onClick={() => setIsSettingsOpen(false)} className={`p-2 hover:bg-white/5 rounded-full transition-colors text-${tColor}-500`}>
+                <button 
+                  onClick={() => setIsSettingsOpen(false)} 
+                  aria-label={lang.close}
+                  className={`p-2 hover:bg-white/5 rounded-full transition-colors text-${tColor}-500 focus-visible:ring-2 focus-visible:ring-${tColor}-500 outline-none`}
+                >
                   <X />
                 </button>
               </div>
@@ -944,7 +1318,8 @@ export default function App() {
                       { id: 'indigo', color: '#6366f1', label: 'Indigo' },
                       { id: 'rose', color: '#f43f5e', label: 'Rose' },
                       { id: 'amber', color: '#f59e0b', label: 'Amber' },
-                      { id: 'emerald', color: '#10b981', label: 'Emerald' }
+                      { id: 'emerald', color: '#10b981', label: 'Emerald' },
+                      { id: 'obsidian', color: '#000000', label: 'Obsidian' }
                     ].map(tInfo => (
                       <button
                         key={tInfo.id}
@@ -1251,7 +1626,11 @@ export default function App() {
                    <History className={`text-${tColor}-500`} size={24} />
                    <h2 className="text-xl font-black uppercase tracking-tighter text-white italic">{lang.dailyLog}</h2>
                  </div>
-                 <button onClick={() => setIsLogOpen(false)} className="p-2 hover:bg-white/5 rounded-full text-slate-500">
+                 <button 
+                   onClick={() => setIsLogOpen(false)} 
+                   aria-label={lang.close}
+                   className="p-2 hover:bg-white/5 rounded-full text-slate-400 focus-visible:ring-2 focus-visible:ring-white outline-none"
+                 >
                     <ChevronLeft size={24} />
                  </button>
               </div>
@@ -1344,9 +1723,13 @@ export default function App() {
               <div className={`p-8 flex justify-between items-center border-b border-${tColor}-500/10`}>
                  <div className="flex items-center gap-3">
                    <Book className={`text-${tColor}-500`} size={24} />
-                   <h2 className="text-xl font-black uppercase tracking-tighter text-white italic">Skills</h2>
+                   <h2 className="text-xl font-black uppercase tracking-tighter text-white italic">{lang.skills}</h2>
                  </div>
-                 <button onClick={() => setIsSidebarOpen(false)} className="p-2 hover:bg-white/5 rounded-full text-slate-500">
+                 <button 
+                   onClick={() => setIsSidebarOpen(false)} 
+                   aria-label={lang.close}
+                   className="p-2 hover:bg-white/5 rounded-full text-slate-400 focus-visible:ring-2 focus-visible:ring-white outline-none"
+                 >
                     <ChevronLeft size={24} />
                  </button>
               </div>
@@ -1354,10 +1737,11 @@ export default function App() {
               <div className="flex-1 overflow-y-auto p-8 space-y-8 no-scrollbar">
                 <section className="space-y-6">
                   <div className="flex justify-between items-center">
-                    <h3 className={`text-[10px] font-black uppercase tracking-[0.3em] text-${tColor}-400`}>{lang.characterProfile}</h3>
+                    <h2 className={`text-[10px] font-black uppercase tracking-[0.3em] text-${tColor}-400`}>{lang.characterProfile}</h2>
                     <button 
                       onClick={() => setCreationModal({ isOpen: true, type: 'skill' })}
-                      className={`text-[10px] font-black uppercase bg-${tColor}-500/10 text-${tColor}-400 px-3 py-1 rounded-full border border-${tColor}-500/20 hover:bg-${tColor}-500 hover:text-black transition-all`}
+                      aria-label={lang.newSkill}
+                      className={`text-[10px] font-black uppercase bg-${tColor}-500/10 text-${tColor}-400 px-3 py-1 rounded-full border border-${tColor}-500/20 hover:bg-${tColor}-500 hover:text-black transition-all focus-visible:ring-2 focus-visible:ring-${tColor}-500 outline-none`}
                     >
                       {lang.newSkill}
                     </button>
@@ -1369,21 +1753,22 @@ export default function App() {
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         key={skill.id} 
-                        className={`p-5 rounded-2xl bg-${tColor}-500/5 border border-${tColor}-500/10 hover:bg-${tColor}-500/[0.08] transition-all group`}
+                        className={`p-5 rounded-2xl bg-${tColor}-500/5 border border-${tColor}-500/10 hover:bg-${tColor}-500/[0.08] transition-all group focus-within:ring-1 focus-within:ring-${tColor}-500`}
                       >
                          <div className="flex justify-between items-start mb-2">
-                           <h4 className="font-bold text-white tracking-tight">{skill.name}</h4>
+                           <h3 className="font-bold text-white tracking-tight">{skill.name}</h3>
                            <div className="flex items-center gap-2">
                               <span className={`text-[10px] font-bold text-${tColor}-400`}>{lang.lvl} {skill.level}</span>
                               <button 
                                 onClick={() => setSkills(skills.filter(s => s.id !== skill.id))}
-                                className="text-slate-600 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all"
+                                aria-label={`${lang.delete} ${skill.name}`}
+                                className="text-slate-400 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-all focus-visible:opacity-100 focus-visible:text-rose-500 outline-none"
                               >
                                 <Trash2 size={14} />
                               </button>
                            </div>
                          </div>
-                         <p className="text-slate-500 text-xs leading-relaxed">{skill.description}</p>
+                         <p className="text-slate-300 text-xs leading-relaxed opacity-70">{skill.description}</p>
                       </motion.div>
                     ))}
                     {skills.length === 0 && (
@@ -1396,8 +1781,8 @@ export default function App() {
                 </section>
 
                 <section className="p-6 rounded-3xl bg-slate-900/50 border border-slate-800 space-y-4">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-500">{lang.masteryIntel}</h4>
-                  <p className="text-[10px] text-slate-400 leading-relaxed italic opacity-70">
+                  <h2 className="text-[10px] font-black uppercase tracking-widest text-slate-400">{lang.masteryIntel}</h2>
+                  <p className="text-[10px] text-slate-300 leading-relaxed italic opacity-70">
                     {lang.skillsDescription}
                   </p>
                 </section>
@@ -1430,7 +1815,8 @@ export default function App() {
             onSave={(data) => {
               const id = uid();
               if (creationModal.type === 'main-quest') {
-                setMainQuest({ id, title: data.title, description: data.description || '', type: 'main', rewards: data.rewards });
+                const questRewards = data.rewards.length > 0 ? data.rewards : [{ statusBarId: statusBars[0]?.id || 'exp', amount: 100 }];
+                setMainQuest({ id, title: data.title, description: data.description || '', type: 'main', rewards: questRewards });
               } else if (creationModal.type === 'side-quest') {
                 setSideQuests([{ id, title: data.title, description: data.description || '', type: 'side', rewards: data.rewards }, ...sideQuests]);
               } else if (creationModal.type === 'grind-task') {
@@ -1439,6 +1825,17 @@ export default function App() {
                 setProblems([{ id, title: data.title, xpPenalty: data.amount }, ...problems]);
               } else if (creationModal.type === 'skill') {
                 setSkills([{ id, name: data.title, description: data.description || '', level: 1 }, ...skills]);
+              } else if (creationModal.type === 'habit') {
+                const habitRewards = data.rewards.length > 0 ? data.rewards : [{ statusBarId: statusBars[0]?.id || 'exp', amount: 10 }];
+                setHabits([{ 
+                  id, 
+                  title: data.title, 
+                  icon: data.icon, 
+                  color: tColor === 'indigo' ? '#6366f1' : tColor === 'rose' ? '#f43f5e' : tColor === 'amber' ? '#f59e0b' : tColor === 'emerald' ? '#10b981' : '#f8fafc',
+                  subtasks: (data.subtasks || []).map((text: string) => ({ id: uid(), text, completed: false })),
+                  rewards: habitRewards,
+                  isClaimed: false
+                }, ...habits]);
               }
               setCreationModal({ isOpen: false, type: null });
             }}
@@ -1505,12 +1902,180 @@ export default function App() {
   );
 }
 
+function PerformanceInsights({ habits, habitHistory, tColor, lang, language }: any) {
+  const [range, setRange] = useState<'7d' | '1m' | '1y'>('7d');
+  
+  const daysArr = useMemo(() => {
+    const getDaysInRange = () => {
+      if (range === '7d') return 7;
+      if (range === '1m') return 30;
+      return 365;
+    };
+    
+    const count = getDaysInRange();
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    return Array.from({ length: count }).map((_, i) => {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      return d.toISOString().split('T')[0];
+    });
+  }, [range]);
+
+  const stats = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    
+    return habits.map(habit => {
+      let completedCount = 0;
+      let totalPossible = 0;
+
+      daysArr.forEach(dateStr => {
+        const isToday = dateStr === todayStr;
+        if (isToday) {
+          const h = habits.find(h => h.id === habit.id);
+          if (h) {
+            const hSubtasks = h.subtasks || [];
+            const rate = hSubtasks.length > 0 ? hSubtasks.filter(s => s.completed).length / hSubtasks.length : 0;
+            if (rate === 1) completedCount++;
+            totalPossible++;
+          }
+        } else {
+          const history = habitHistory.find(h => h.date === dateStr);
+          if (history) {
+            const hStats = history.habits.find(h => h.id === habit.id);
+            if (hStats && hStats.completionRate === 1) completedCount++;
+            totalPossible++;
+          }
+        }
+      });
+
+      return {
+        ...habit,
+        completedCount,
+        successRate: totalPossible > 0 ? (completedCount / totalPossible) * 100 : 0
+      };
+    });
+  }, [habits, habitHistory, daysArr]);
+
+  const averageSuccess = useMemo(() => 
+    stats.length > 0 
+      ? stats.reduce((acc, s) => acc + s.successRate, 0) / stats.length 
+      : 0
+  , [stats]);
+
+  return (
+    <motion.div 
+      id="performance-insights"
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="space-y-8 px-4"
+    >
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+        <div>
+          <h2 className="text-3xl font-black text-white italic uppercase tracking-tighter">{lang.performanceInsights}</h2>
+          <p className="text-slate-500 text-xs font-bold uppercase tracking-widest mt-1">Temporal Analysis Protocol</p>
+        </div>
+        
+        <div className="flex bg-slate-900 border border-slate-800 p-1 rounded-xl">
+          {(['7d', '1m', '1y'] as const).map(r => (
+            <button
+              key={r}
+              onClick={() => setRange(r)}
+              className={`px-6 py-2 rounded-lg text-[10px] font-black uppercase tracking-widest transition-all ${range === r ? `bg-${tColor}-500 text-white shadow-lg shadow-${tColor}-500/20` : 'text-slate-500 hover:text-slate-300'}`}
+            >
+              {r === '7d' ? lang.sevenDays : r === '1m' ? lang.oneMonth : lang.oneYear}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="bento-card flex flex-col items-center justify-center py-10 gap-2 border border-slate-800/50">
+          <div className={`w-16 h-16 rounded-full bg-${tColor}-500/10 flex items-center justify-center text-${tColor}-400 mb-2`}>
+            <Award size={32} />
+          </div>
+          <span className="text-[10px] font-black uppercase tracking-[0.3em] text-slate-500">{lang.stabilityScore}</span>
+          <span className="text-5xl font-black text-white italic">{Math.round(averageSuccess)}%</span>
+        </div>
+
+        <div className="md:col-span-2 bento-card border border-slate-800/50">
+          <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-6">{lang.consistencyLadder}</h3>
+          <div className="space-y-4">
+            {stats.sort((a, b) => b.successRate - a.successRate).slice(0, 3).map((s, i) => (
+              <div key={s.id} className="flex items-center gap-4">
+                <span className="text-xl font-black italic text-slate-700 w-6">#{i+1}</span>
+                <div className="flex-1 space-y-2">
+                  <div className="flex justify-between text-[11px] font-bold uppercase tracking-tight">
+                    <span className="text-white">{s.title}</span>
+                    <span className={`text-${tColor}-400`}>{Math.round(s.successRate)}%</span>
+                  </div>
+                  <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                    <motion.div 
+                      initial={{ width: 0 }}
+                      animate={{ width: `${s.successRate}%` }}
+                      className={`h-full bg-${tColor}-500 rounded-full`}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <div className="bento-card border border-slate-800/50 overflow-hidden">
+        <h3 className="text-[10px] font-black uppercase tracking-widest text-slate-500 mb-8">{lang.consistencyBreakdown}</h3>
+        <div className="overflow-x-auto no-scrollbar">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-slate-800">
+                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-600">{lang.habit}</th>
+                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-600 text-center">{lang.completionRate}</th>
+                <th className="pb-4 text-[10px] font-black uppercase tracking-widest text-slate-600 text-right">{lang.timesCompleted}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/50">
+              {stats.map(s => (
+                <tr key={s.id} className="group hover:bg-slate-800/20 transition-colors">
+                  <td className="py-4">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center text-slate-400 group-hover:text-white transition-colors">
+                        {s.icon === 'Sun' ? <Sun size={14} /> : <Target size={14} />}
+                      </div>
+                      <span className="text-sm font-bold text-slate-300 group-hover:text-white transition-colors">{s.title}</span>
+                    </div>
+                  </td>
+                  <td className="py-4 text-center">
+                    <span className={`text-xs font-mono font-bold ${s.successRate > 80 ? `text-${tColor}-400` : 'text-slate-500'}`}>{Math.round(s.successRate)}%</span>
+                  </td>
+                  <td className="py-4 text-right">
+                    <span className="text-xs font-mono font-bold text-slate-300">{s.completedCount} / {daysArr.length}</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/** 
+ * CREATION MODAL COMPONENT
+ * ------------------------
+ * A generic form handler for creating Quests, Tasks, Skills, and Threats.
+ * Dynamically adjusts fields based on the 'type' prop.
+ */
 function CreationModal({ type, onClose, statusBars, onSave, tColor, lang }: any) {
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [rewards, setRewards] = useState<Reward[]>([]);
+  const [subtasks, setSubtasks] = useState<string[]>([]);
+  const [newSubtask, setNewSubtask] = useState('');
   const [currentStatusBarId, setCurrentStatusBarId] = useState(statusBars[0]?.id || '1');
   const [currentAmount, setCurrentAmount] = useState(10);
+  const [icon, setIcon] = useState('Sun');
 
   const addReward = () => {
     if (currentAmount > 0) {
@@ -1520,6 +2085,17 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor, lang }: any)
 
   const removeReward = (index: number) => {
     setRewards(rewards.filter((_, i) => i !== index));
+  };
+
+  const addSubtask = () => {
+    if (newSubtask.trim()) {
+      setSubtasks([...subtasks, newSubtask.trim()]);
+      setNewSubtask('');
+    }
+  };
+
+  const removeSubtask = (index: number) => {
+    setSubtasks(subtasks.filter((_, i) => i !== index));
   };
 
   const typeLabels = lang.typeLabels;
@@ -1535,11 +2111,15 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor, lang }: any)
         initial={{ scale: 0.95, opacity: 0, y: 20 }}
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.95, opacity: 0, y: 20 }}
-        className={`w-full max-w-lg bg-[#0f172a] border border-${tColor}-500/30 rounded-[32px] p-8 shadow-2xl`}
+        className={`w-full max-w-lg bg-[#0f172a] border border-${tColor}-500/30 rounded-[32px] p-8 shadow-2xl overflow-y-auto max-h-[90vh]`}
       >
         <div className={`flex justify-between items-center mb-8 border-b border-${tColor}-500/10 pb-4`}>
-          <h3 className="text-xl font-black text-white tracking-tight uppercase italic">{typeLabels[type]}</h3>
-          <button onClick={onClose} className={`p-2 hover:bg-white/5 rounded-full text-${tColor}-500 transition-colors`}>
+          <h2 className="text-xl font-black text-white tracking-tight uppercase italic">{typeLabels[type]}</h2>
+          <button 
+            onClick={onClose} 
+            aria-label={lang.close}
+            className={`p-2 hover:bg-white/5 rounded-full text-${tColor}-500 transition-colors focus-visible:ring-2 focus-visible:ring-${tColor}-500 outline-none`}
+          >
             <X size={20} />
           </button>
         </div>
@@ -1553,12 +2133,14 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor, lang }: any)
               value={title} 
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && title) {
-                  const finalRewards = (type === 'main-quest' || type === 'side-quest' || type === 'grind-task') ? rewards : [];
+                  const finalRewards = (type === 'main-quest' || type === 'side-quest' || type === 'grind-task' || type === 'habit') ? rewards : [];
                   onSave({ 
                     title, 
                     description, 
                     rewards: finalRewards,
-                    amount: currentAmount 
+                    amount: currentAmount,
+                    subtasks: subtasks,
+                    icon: icon
                   });
                 }
               }}
@@ -1568,7 +2150,62 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor, lang }: any)
             />
           </div>
 
-          {(type === 'main-quest' || type === 'side-quest' || type === 'skill') && (
+          {type === 'habit' && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>Icon Selection</label>
+                <div className="flex flex-wrap gap-3">
+                  {(['Sun', 'Target', 'Heart', 'Zap', 'Book', 'Award'] as const).map(i => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => setIcon(i)}
+                      className={`p-3 rounded-xl border transition-all ${icon === i ? `bg-${tColor}-500/20 border-${tColor}-500 text-${tColor}-400` : 'bg-slate-900 border-slate-800 text-slate-500 hover:border-slate-700'}`}
+                    >
+                      {i === 'Sun' && <Sun size={20} />}
+                      {i === 'Target' && <Target size={20} />}
+                      {i === 'Heart' && <Heart size={20} />}
+                      {i === 'Zap' && <Zap size={20} />}
+                      {i === 'Book' && <Book size={20} />}
+                      {i === 'Award' && <Award size={20} />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>{lang.subtasks}</label>
+                <div className="flex gap-2">
+                  <input 
+                    type="text" 
+                    value={newSubtask} 
+                    onChange={e => setNewSubtask(e.target.value)}
+                    onKeyDown={e => e.key === 'Enter' && addSubtask()}
+                    placeholder="Enter subtask..."
+                    className="flex-1 bg-slate-900 border border-slate-800 p-4 rounded-2xl text-white focus:border-indigo-500 outline-none transition-all"
+                  />
+                  <button 
+                    onClick={addSubtask}
+                    className={`px-4 bg-${tColor}-600 rounded-xl hover:bg-${tColor}-500 transition-all text-white`}
+                  >
+                    <Plus size={20} />
+                  </button>
+                </div>
+                <div className="space-y-2 mt-2">
+                  {subtasks.map((st, idx) => (
+                    <div key={idx} className="flex justify-between items-center p-3 bg-slate-800/30 border border-slate-700/50 rounded-xl">
+                      <span className="text-xs text-slate-300">{st}</span>
+                      <button onClick={() => removeSubtask(idx)} className="text-rose-400 hover:text-rose-300">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {(type === 'main-quest' || type === 'side-quest' || type === 'skill' || type === 'habit') && (
             <div className="space-y-2">
               <label className={`text-[10px] font-bold text-${tColor}-400/60 uppercase tracking-widest pl-1`}>{lang.description}</label>
               <textarea 
@@ -1592,7 +2229,7 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor, lang }: any)
             </div>
           )}
 
-          {(type === 'main-quest' || type === 'side-quest' || type === 'grind-task') && (
+          {(type === 'side-quest' || type === 'grind-task' || type === 'habit') && (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -1652,12 +2289,14 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor, lang }: any)
 
           <button 
             onClick={() => {
-              const finalRewards = (type === 'main-quest' || type === 'side-quest' || type === 'grind-task') ? rewards : [];
+              const finalRewards = (type === 'main-quest' || type === 'side-quest' || type === 'grind-task' || type === 'habit') ? rewards : [];
               onSave({ 
                 title, 
                 description, 
                 rewards: finalRewards,
-                amount: currentAmount // For problems which use a single value
+                amount: currentAmount, // For problems which use a single value
+                subtasks: subtasks,
+                icon: icon
               });
             }}
             disabled={!title || ((type === 'side-quest' || type === 'grind-task') && rewards.length === 0)}
@@ -1671,38 +2310,46 @@ function CreationModal({ type, onClose, statusBars, onSave, tColor, lang }: any)
   );
 }
 
-// THIS COMPONENT IS NEVER RENDERED
-// It exists solely to ensure Tailwind's JIT compiler generates the classes 
-// for all possible system themes.
+/**
+ * TAILWIND SAFELIST
+ * -----------------
+ * This component is never rendered effectively.
+ * It serves to prevent Tailwind's tree-shaking from removing dynamic theme classes.
+ * Since classes like `bg-${tColor}-500` are constructed at runtime, Tailwind doesn't 
+ * "see" them in the source code unless they are explicitly listed somewhere.
+ */
 function TailwindSafelist() {
   return (
     <div className="hidden
-      text-indigo-400 text-rose-400 text-emerald-400 text-amber-400
-      text-indigo-500 text-rose-500 text-emerald-500 text-amber-500
-      bg-indigo-500 bg-rose-500 bg-emerald-500 bg-amber-500
-      bg-indigo-600 bg-rose-600 bg-emerald-600 bg-amber-600
-      bg-indigo-500/5 bg-rose-500/5 bg-emerald-500/5 bg-amber-500/5
-      bg-indigo-500/10 bg-rose-500/10 bg-emerald-500/10 bg-amber-500/10
-      bg-indigo-600/20 bg-rose-600/20 bg-emerald-600/20 bg-amber-600/20
-      bg-indigo-600/30 bg-rose-600/30 bg-emerald-600/30 bg-amber-600/30
+      text-indigo-400 text-rose-400 text-emerald-400 text-amber-400 text-slate-400
+      text-indigo-500 text-rose-500 text-emerald-500 text-amber-500 text-slate-500
+      bg-indigo-500 bg-rose-500 bg-emerald-500 bg-amber-500 bg-slate-500
+      bg-indigo-600 bg-rose-600 bg-emerald-600 bg-amber-600 bg-slate-600
+      bg-indigo-500/5 bg-rose-500/5 bg-emerald-500/5 bg-amber-500/5 bg-slate-500/5
+      bg-indigo-500/10 bg-rose-500/10 bg-emerald-500/10 bg-amber-500/10 bg-slate-500/10
+      bg-indigo-600/20 bg-rose-600/20 bg-emerald-600/20 bg-amber-600/20 bg-slate-600/20
+      bg-indigo-600/30 bg-rose-600/30 bg-emerald-600/30 bg-amber-600/30 bg-slate-600/30
+      bg-indigo-500/20 bg-rose-500/20 bg-emerald-500/20 bg-amber-500/20 bg-slate-500/20
       bg-indigo-500/[0.02] bg-rose-500/[0.02] bg-emerald-500/[0.02] bg-amber-500/[0.02]
       bg-indigo-500/[0.08] bg-rose-500/[0.08] bg-emerald-500/[0.08] bg-amber-500/[0.08]
-      border-indigo-500/10 border-rose-500/10 border-emerald-500/10 border-amber-500/10
-      border-indigo-500/20 border-rose-500/20 border-emerald-500/20 border-amber-500/20
-      border-indigo-500/30 border-rose-500/30 border-emerald-500/30 border-amber-500/30
-      border-indigo-500/50 border-rose-500/50 border-emerald-500/50 border-amber-500/50
-      shadow-indigo-500/10 shadow-rose-500/10 shadow-emerald-500/10 shadow-amber-500/10
-      shadow-indigo-600/20 shadow-rose-600/20 shadow-emerald-600/20 shadow-amber-600/20
-      hover:bg-indigo-500 hover:bg-rose-500 hover:bg-emerald-500 hover:bg-amber-500
-      hover:bg-indigo-600 hover:bg-rose-600 hover:bg-emerald-600 hover:bg-amber-600
-      focus:border-indigo-400 focus:border-rose-400 focus:border-emerald-400 focus:border-amber-400
-      focus:border-indigo-500 focus:border-rose-500 focus:border-emerald-500 focus:border-amber-500
-      hover:text-indigo-300 hover:text-rose-300 hover:text-emerald-300 hover:text-amber-300
+      border-indigo-500/10 border-rose-500/10 border-emerald-500/10 border-amber-500/10 border-slate-500/10
+      border-indigo-500/20 border-rose-500/20 border-emerald-500/20 border-amber-500/20 border-slate-500/20
+      border-indigo-500/30 border-rose-500/30 border-emerald-500/30 border-amber-500/30 border-slate-500/30
+      border-indigo-500/40 border-rose-500/40 border-emerald-500/40 border-amber-500/40 border-slate-500/40
+      border-indigo-500/50 border-rose-500/50 border-emerald-500/50 border-amber-500/50 border-slate-500/50
+      shadow-indigo-500/10 shadow-rose-500/10 shadow-emerald-500/10 shadow-amber-500/10 shadow-slate-500/10
+      shadow-indigo-600/20 shadow-rose-600/20 shadow-emerald-600/20 shadow-amber-600/20 shadow-slate-600/20
+      hover:bg-indigo-500 hover:bg-rose-500 hover:bg-emerald-500 hover:bg-amber-500 hover:bg-slate-500
+      hover:bg-indigo-600 hover:bg-rose-600 hover:bg-emerald-600 hover:bg-amber-600 hover:bg-slate-600
+      focus:border-indigo-400 focus:border-rose-400 focus:border-emerald-400 focus:border-amber-400 focus:border-slate-400
+      focus:border-indigo-500 focus:border-rose-500 focus:border-emerald-500 focus:border-amber-500 focus:border-slate-500
+      hover:text-indigo-300 hover:text-rose-300 hover:text-emerald-300 hover:text-amber-300 hover:text-slate-300
       group-hover:text-indigo-300 group-hover:text-rose-300 group-hover:text-emerald-300 group-hover:text-amber-300
       hover:border-indigo-500/30 hover:border-rose-500/30 hover:border-emerald-500/30 hover:border-amber-500/30
       hover:border-indigo-500/50 hover:border-rose-500/50 hover:border-emerald-500/50 hover:border-amber-500/50
-      selection:bg-indigo-500 selection:bg-rose-500 selection:bg-emerald-500 selection:bg-amber-500
-      text-indigo-400/60 text-rose-400/60 text-emerald-400/60 text-amber-400/60
+      selection:bg-indigo-500 selection:bg-rose-500 selection:bg-emerald-500 selection:bg-amber-500 selection:bg-slate-500
+      text-indigo-400/60 text-rose-400/60 text-emerald-400/60 text-amber-400/60 text-slate-400/60
+      outline-indigo-400 outline-rose-400 outline-emerald-400 outline-amber-400 outline-slate-400
     "></div>
   );
 }

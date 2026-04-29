@@ -1,158 +1,103 @@
-# Character Progression System (Local RPG Life Tracker)
+# LUSI: Strategic Growth Dashboard (Full-Stack)
 
+**LUSI** (Leveling-Up System Interface) is a technical, RPG-inspired productivity dashboard designed to turn personal growth, habits, and task management into a gamified system.
 
-A local-first gamified productivity / RPG-style character system.  
-You define a character, track progress through status bars, quests, grind tasks, and penalties.
-
-No backend. No cloud. Everything runs locally in the browser.
+This version is a **Full-Stack Application** specifically engineered for Linux servers. It replaces basic `localStorage` with a **centralized, consistent database** (server-side JSON) that synchronizes progress across all connected devices (phones, laptops) on your local network.
 
 ---
 
-## ⚠️ Important Note
+## 🚀 Key Features
 
-- To run the app :
-- - Run install.bat
-  - After installation run start.bat
+- **Centralized Persistence**: All progress is saved to `data.json` on the server. Opening the app from any device shows the exact same up-to-date state.
+- **Character System**: Dynamic leveling and RPG-style rank evolution.
+- **Custom Stats**: Track Health, Mana, Stamina, or any custom attribute.
+- **Quest Engine**: Manage Main Quests, Side Quests, and infinite daily loops.
+- **Threat Management**: Loss of XP for bad habits or system failures.
+- **Atomic Safety**: Uses a temp-write & rename strategy on the server to prevent data corruption during saves.
+- **History Log**: Audit trail of all character actions and stat changes.
 
+---
 
+## 🛠 Full-Stack Architecture
 
+- **Backend**: Node.js (Express) server providing a REST API (`GET /data`, `POST /data`).
+- **Database**: `data.json` file on the server. It includes a basic locking mechanism (write queue) to handle simultaneous requests from multiple devices.
+- **Frontend**: React-based dashboard that handles debounced synchronization with the server.
 
-## 🧠 Core Concept
+---
 
-You are not "tracking tasks". (or you can, It's up to you)
-You are leveling up a character.
+## 📦 Setup & Execution (Linux Server)
 
-Everything you do affects:
-- XP
-- Level
-- Status bars (attributes)
-- Skills (formerly “Grimoire”)
+To deploy this on your local Linux machine (e.g., Raspberry Pi, Home Server, or a PC in `/var/www`):
 
+### 1. Prerequisites
+- Node.js (v18+)
+- npm
 
+### 2. Permissions & Deployment
+If deploying in `/var/www/`, you must ensure your user has permissions to write files:
 
-## ✨ Features
+```bash
+# Move to the directory
+cd /var/www/lusi-app
 
-### 👤 Character System
-- Set character name
-- View level, rank, XP
-- Rank text updates dynamically (fix pending if still static)
+# Grant ownership to your user
+sudo chown -R $USER:$USER .
+chmod -R 755 .
+```
 
+### 3. Build & Install
+```bash
+# 1. Install dependencies
+npm install
 
-### 📊 Status Bars (Core System)
-- Create custom bars:
-  - Name
-  - Color
-  - Max value (e.g. 0/1000 system, not percentages)
-- Bars affect XP progression
-- Each bar tracks:
-  - Current value
-  - Repeat count
+# 2. Build the application (Frontend + Backend)
+npm run build
+```
 
+### 4. Running the Server
 
-### ⚔️ Progress Rules (IMPORTANT LOGIC)
+**Modern Production Mode (Recommended):**
+```bash
+# This starts the compiled server (dist/server.js) in production mode
+npm start
+```
 
-- XP is **NOT manually addable anymore**
-- XP only increases when a **status bar is completely filled**
+**Access from other devices:**
+1. Find your server's local IP (e.g., `192.168.1.50`).
+2. Visit `http://192.168.1.50:3000` from any device on your Wi-Fi.
 
-When a bar is full:
-- +20% of current level XP is awarded
-- Bar resets to 0
-- Repeat count increases by 1
+---
 
+## 🖥 Systemd Service (Autostart)
+To ensure the app starts automatically when your Linux server boots, create a service file:
 
-### 📉 Penalty System
-- Problems can reduce XP
-- XP can go below current level threshold
-- If XP drops below 0:
-  - Level decreases
-  - Minimum level is 0 (cannot go negative)
+`/etc/systemd/system/lusi.service`:
+```ini
+[Unit]
+Description=LUSI RPG Dashboard
+After=network.target
 
-### 📌 Quest System
+[Service]
+WorkingDirectory=/var/www/lusi-app
+ExecStart=/usr/bin/npm start
+Restart=always
+Environment=NODE_ENV=production
+# You can override the port if needed
+Environment=PORT=3000
+User=votre-user
 
-#### Main Quest
-- Can only be created or deleted
-- Cannot be completed manually
-- Does NOT directly give XP
+[Install]
+WantedBy=multi-user.target
+```
+Then run:
+`sudo systemctl daemon-reload && sudo systemctl enable lusi && sudo systemctl start lusi`
 
-#### Side Quests
-- Create / edit / delete
-- Claim reward manually
-- Choose affected status bar
-- Configurable XP reward per quest
+---
 
-### Grind Tasks (Infinite Tasks)
-- Repeatable tasks
-- Create / delete
-- Each completion grants XP or affects status bar
-- Fully configurable reward system
+## 📖 Reliability Details
 
-
-### ⚠️ Problems System
-- Create “negative events” (e.g. sleep badly)
-- Each problem can:
-  - Reduce XP
-  - Be activated manually
-- Used for dynamic penalties
-
-### Skills (formerly “Grimoire”)
-- Sidebar system
-- Add custom skills
-- Planned for progression expansion
-
-### UI / Themes
-
-Bento Grid layout system applied.
-
-Available themes:
-- Rose (currently most stable)
-- Blue
-- Yellow
-- Green
-
-### ⚙️ Settings Menu
-
-Includes:
-- Reset system 
-- System wipe 
-- Export / Import (JSON-based local backup)
-
-
-## 💾 Data Storage
-
-- Fully local (json storage)
-- No backend
-- No cloud sync
-- No external APIs
-
-## 🧯 Known Issues
-
-### XP System Bugs (partially fixed)
-- Some XP calculations previously incorrect (e.g. +10 EXP → +1000 XP bug)
-- XP sometimes not syncing with level properly
-
-### UI Bugs
-- FIXED Theme system incomplete (only Rose fully working) 
-- FIXED Sidebar skill system incomplete in some states
-
-### Feature Bugs
-- Main quest not awarding XP (by design, but confusing behavior)
-
-
-## 🚧 Roadmap / Fix Priority
-
-1. FIXED Fix `npm run build`
-2. FIXED Stabilize XP calculation engine
-3. FIXED Fix theme system (all colors working)
-4. FIXED Repair reset / system wipe
-5. FIXED Stabilize export/import
-6. FIXED Finalize skill system sidebar
-7. FIXED Clean quest logic consistency
-
-## 🛠 Tech Stack 
-
-- React / Vite 
-- LocalStorage / IndexedDB
-- Tailwind or custom CSS (Bento layout)
-- json simple backend
-
-
+- **Database Consistency**: The app uses a 1-second debounce before saving changes. If you make changes on a phone, they will appear on your laptop after a refresh (or vice versa).
+- **Atomic Write**: The server saves data to `data.tmp` and then performs an atomic `rename` to `data.json`. This prevents "half-written" files if power is lost.
+- **Backups**: Every save creates a `data.json.bak` of the *previous* state.
+- **No LocalStorage**: The primary state is **never** stored in the browser's persistent storage; it is always derived from the server on load.

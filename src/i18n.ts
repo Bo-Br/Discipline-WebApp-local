@@ -1,7 +1,17 @@
 
+/**
+ * I18n Utility
+ * Manages all system strings for the Leveling-Up interface.
+ * Supports English (en), French (fr), and Russian (ru).
+ */
+
 export type Language = 'en' | 'fr' | 'ru';
 
 export const translations = {
+  /** 
+   * ENGLISH CONFIGURATION
+   * Default fallback language.
+   */
   en: {
     welcome: "Welcome",
     systemInitializing: "Initializing...",
@@ -34,7 +44,7 @@ export const translations = {
     dangerZone: "Danger Zone",
     loadExample: "Load Example",
     eraseAll: "Erase All",
-    wipeWarning: "This action will purge all character progress and reset the neural link. Proceed with caution.",
+    wipeWarning: "These actions can and will have an impact on your XP. Proceed with caution.",
     confirmWipe: "Confirm System Wipe?",
     confirmLoadExample: "Load example data? This will overwrite your current progress.",
     exportMap: "Export",
@@ -53,12 +63,28 @@ export const translations = {
     amount: "Reward Amount",
     configuredRewards: "Rewards",
     registerEntry: "Add Task",
+    habitTracker: "Habit Tracker",
+    performanceInsights: "Performance Insights",
+    dailyProtocol: "Daily Protocol",
+    stabilityScore: "Stability Score",
+    consistencyLadder: "Consistency Ladder",
+    sevenDays: "7 Days",
+    oneMonth: "1 Month",
+    oneYear: "1 Year",
+    consistencyBreakdown: "Consistency Breakdown",
+    completionRate: "Rate",
+    timesCompleted: "Count",
+    habit: "Habit",
+    noHabits: "No habits defined.",
+    newHabit: "New Habit",
+    subtasks: "Subtasks",
     typeLabels: {
       'side-quest': 'Side Quest',
       'grind-task': 'Daily Task',
       'problem': 'System Threat',
       'main-quest': 'Main Goal',
-      'skill': 'Skill'
+      'skill': 'Skill',
+      'habit': 'Habit'
     },
     masteryIntel: "Skill Info",
     skillsDescription: "Your skills will grow as you level up. Manage them here to track your progress.",
@@ -76,9 +102,13 @@ export const translations = {
       'grind-task': 'Grind',
       'problem': 'Threat',
       'main-quest': 'Direct.',
-      'skill': 'Skill'
+      'skill': 'Skill',
+      'habit': 'Habit'
     }
   },
+  /** 
+   * FRENCH CONFIGURATION
+   */
   fr: {
     welcome: "Bienvenue",
     systemInitializing: "Initialisation...",
@@ -111,7 +141,7 @@ export const translations = {
     dangerZone: "Zone de Danger",
     loadExample: "Charger l'Exemple",
     eraseAll: "Tout Effacer",
-    wipeWarning: "Cette action purgera toute la progression du personnage et réinitialisera le lien neural. Procédez avec prudence.",
+    wipeWarning: "Ces actions peuvent et vont impacter votre XP. Procédez avec prudence.",
     confirmWipe: "Confirmer l'effacement du système ?",
     confirmLoadExample: "Charger les données d'exemple ? Cela écrasera votre progression actuelle.",
     exportMap: "Exporter",
@@ -130,12 +160,28 @@ export const translations = {
     amount: "Récompense",
     configuredRewards: "Récompenses",
     registerEntry: "Ajouter Tâche",
+    habitTracker: "Traqueur d'Habitudes",
+    performanceInsights: "Analyses de Performance",
+    dailyProtocol: "Protocole Quotidien",
+    stabilityScore: "Score de Stabilité",
+    consistencyLadder: "Échelle de Constance",
+    sevenDays: "7 Jours",
+    oneMonth: "1 Mois",
+    oneYear: "1 An",
+    consistencyBreakdown: "Détail de la Constance",
+    completionRate: "Taux",
+    timesCompleted: "Nombre",
+    habit: "Habitude",
+    noHabits: "Aucune habitude définie.",
+    newHabit: "Nouvelle Habitude",
+    subtasks: "Sous-tâches",
     typeLabels: {
       'side-quest': 'Quête Secondaire',
       'grind-task': 'Tâche Quotidienne',
       'problem': 'Menace Système',
       'main-quest': 'Objectif Principal',
-      'skill': 'Compétence'
+      'skill': 'Compétence',
+      'habit': 'Habitude'
     },
     masteryIntel: "Infos Compétence",
     skillsDescription: "Vos compétences évolueront avec votre niveau. Gérez-les ici pour suivre votre progression.",
@@ -153,9 +199,13 @@ export const translations = {
       'grind-task': 'Grind',
       'problem': 'Menace',
       'main-quest': 'Direct.',
-      'skill': 'Compétence'
+      'skill': 'Compétence',
+      'habit': 'Habit.'
     }
   },
+  /** 
+   * RUSSIAN CONFIGURATION
+   */
   ru: {
     welcome: "Добро пожаловать",
     systemInitializing: "Загрузка...",
@@ -188,7 +238,7 @@ export const translations = {
     dangerZone: "Опасная зона",
     loadExample: "Загрузить пример",
     eraseAll: "Стереть всё",
-    wipeWarning: "Это действие удалит весь прогресс персонажа и сбросит нейронную связь. Действуйте осторожно.",
+    wipeWarning: "Эти действия могут и будут иметь последствия на вашем уровне. Действуйте осторожно.",
     confirmWipe: "Подтвердить очистку системы?",
     confirmLoadExample: "Загрузить пример данных? Это перезапишет ваш текущий прогресс.",
     exportMap: "Экспорт",
@@ -207,12 +257,28 @@ export const translations = {
     amount: "Награда",
     configuredRewards: "Награды",
     registerEntry: "Добавить",
+    habitTracker: "Трекер привычек",
+    performanceInsights: "Анализ эффективности",
+    dailyProtocol: "Дневной протокол",
+    stabilityScore: "Оценка стабильности",
+    consistencyLadder: "Лестница постоянства",
+    sevenDays: "7 дней",
+    oneMonth: "1 месяц",
+    oneYear: "1 год",
+    consistencyBreakdown: "Детализация постоянства",
+    completionRate: "Уровень",
+    timesCompleted: "Кол-во",
+    habit: "Привычка",
+    noHabits: "Привычки не заданы.",
+    newHabit: "Новая привычка",
+    subtasks: "Подзадачи",
     typeLabels: {
       'side-quest': 'Задание',
       'grind-task': 'Ежедн. задача',
       'problem': 'Угроза',
       'main-quest': 'Главная цель',
-      'skill': 'Навык'
+      'skill': 'Навык',
+      'habit': 'Привычка'
     },
     masteryIntel: "Инфо навыка",
     skillsDescription: "Ваши навыки растут вместе с уровнем. Управляйте ими здесь для отслеживания прогресса.",
@@ -230,7 +296,8 @@ export const translations = {
       'grind-task': 'Гринд',
       'problem': 'Угроза',
       'main-quest': 'Указ',
-      'skill': 'Навык'
+      'skill': 'Навык',
+      'habit': 'Прив.'
     }
   }
 };
